@@ -4,6 +4,12 @@
 
 const DEG = Math.PI / 180;
 
+/** 비행 기록 (결과 화면 그래프) */
+export const RECORDER = {
+  /** 샘플 간격 [s] (시뮬레이션 시간) */
+  sampleIntervalS: 1,
+} as const;
+
 /** 고정 물리 타임스텝 [s] */
 export const FIXED_TIMESTEP_S = 1 / 60;
 

@@ -1,13 +1,15 @@
 /**
  * 시작 화면: 난이도 선택.
  */
-import { DIFFICULTIES, type DifficultyConfig } from '../data/difficulty';
+import type { BestRecords } from '../core/best-records';
+import { DIFFICULTIES, type DifficultyConfig, type DifficultyId } from '../data/difficulty';
 import { TARGET_ORBIT } from '../data/mission-config';
 import { COMPANY_NAME, ROCKET_NAME } from '../data/rocket-specs';
 import { el } from './dom';
 
 export class StartScreen {
   readonly root = el('div', 'screen');
+  private readonly recordLabels = new Map<DifficultyId, HTMLElement>();
 
   constructor(onSelect: (difficulty: DifficultyConfig) => void) {
     const card = el('div', 'panel screen-card');
@@ -24,7 +26,9 @@ export class StartScreen {
     for (const difficulty of Object.values(DIFFICULTIES)) {
       const button = el('button', 'mode-card');
       button.type = 'button';
-      button.append(el('h3', undefined, difficulty.label), el('p', undefined, difficulty.description));
+      const record = el('div', 'mode-record');
+      this.recordLabels.set(difficulty.id, record);
+      button.append(el('h3', undefined, difficulty.label), el('p', undefined, difficulty.description), record);
       button.addEventListener('click', () => onSelect(difficulty));
       list.append(button);
     }
@@ -45,6 +49,17 @@ export class StartScreen {
       ),
     );
     this.root.append(card);
+  }
+
+  /** 모드 카드에 최고 기록 표시 */
+  showRecords(records: BestRecords): void {
+    for (const [id, label] of this.recordLabels) {
+      const best = records.get(id);
+      label.textContent = best
+        ? `최고 기록  ${best.grade} · ${best.score}점${best.boosterLanded ? ' · 부스터 착륙' : ''}`
+        : '최고 기록  없음';
+      label.classList.toggle('empty', best === null);
+    }
   }
 
   setVisible(visible: boolean): void {

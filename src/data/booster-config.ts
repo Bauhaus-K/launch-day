@@ -75,12 +75,16 @@ export const IMPACT_PREDICTION = {
   maxTimeS: 900,
   /** 예측 갱신 주기 [s] */
   refreshS: 0.25,
+  /** 착륙 연소 계획(점화 고도·스로틀) 갱신 주기 [s] */
+  landingPlanRefreshS: 0.1,
 } as const;
 
 /** 부스터 자동 유도 — 관람 모드(전부), 일반 모드(착륙 연소 제외), 리얼 모드(권장값 표시) */
 export const BOOSTER_GUIDANCE = {
   /** 부스트백 자세: 국지 수평 기준 [rad] (180° = 발사장 방향 수평, 약간 위로) */
   boostbackPitchRad: 175 * DEG,
+  /** 역추진 자세 유지: 이 속도 미만이면 연직 자세로 바꿈 [m/s] (착지 직전 뒤집힘 방지) */
+  retrogradeHoldMinSpeedMps: 25,
   /** 부스트백 점화 허용 자세 오차 [rad] */
   boostbackAlignRad: 5 * DEG,
   /**

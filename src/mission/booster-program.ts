@@ -10,6 +10,7 @@ import {
   LANDING_SHIP_UPRANGE_OFFSET_M,
   LEG_DEPLOY_ALTITUDE_M,
   BOOSTER_MANUAL_PITCH_RATE_RAD_PER_S,
+  BOOSTER_GUIDANCE,
 } from '../data/booster-config';
 import { CONTROLS } from '../data/mission-config';
 import type { DifficultyConfig } from '../data/difficulty';
@@ -21,10 +22,12 @@ import {
   autoBoosterCommand,
   autoFinSteer,
   computeBoosterTelemetry,
+  computeLandingPlan,
   enginesForIgnition,
   landingBurnCommand,
-  landingIgnitionAltitude,
+  NO_LANDING_PLAN,
   predictBoosterImpact,
+  type LandingPlan,
   type BoosterStep,
   type BoosterTelemetry,
 } from './booster-guidance';
@@ -33,8 +36,12 @@ import type { PilotInput } from './mission-types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/** 리얼 모드 자세 유지 (자동 조종이 아닌 "자세만" 붙잡아 주는 보조 기능) */
+export type AttitudeHold = 'none' | 'boostback' | 'retrograde';
+
 export interface BoosterProgram {
   step: BoosterStep;
+  attitudeHold: AttitudeHold;
   /** 착륙선 위치 (다운레인지 거리) [m] */
   readonly shipDownrangeM: number;
   /** 수동 모드에서 엔진 점화 요청 상태 (Space로 토글) */
@@ -51,6 +58,9 @@ export interface BoosterProgram {
   recommended: BoosterCommand;
   /** 착륙 연소 권장 점화 고도 [m] */
   ignitionAltitudeM: number;
+  /** 주기적으로 갱신하는 착륙 예측 결과 */
+  landingPlan: LandingPlan;
+  landingPlanAgeS: number;
   outcome: BoosterOutcome | null;
 }
 
@@ -61,6 +71,7 @@ export function createBoosterProgram(b: BoosterState, cfg: StackConfig): Booster
   const telemetry = computeBoosterTelemetry(b, shipDownrangeM, impact);
   return {
     step: 'BOOSTBACK',
+    attitudeHold: 'none',
     shipDownrangeM,
     engineRequest: false,
     manualThrottle: 1,
@@ -72,6 +83,8 @@ export function createBoosterProgram(b: BoosterState, cfg: StackConfig): Booster
     telemetry,
     recommended: { engines: 0, throttle: 0, pitchRad: b.pitchRad, finSteer: 0 },
     ignitionAltitudeM: 0,
+    landingPlan: NO_LANDING_PLAN,
+    landingPlanAgeS: Infinity,
     outcome: null,
   };
 }
@@ -116,7 +129,13 @@ export function updateBoosterProgram(
   }
   const tel = computeBoosterTelemetry(b, p.shipDownrangeM, p.impact);
   p.telemetry = tel;
-  p.ignitionAltitudeM = landingIgnitionAltitude(tel, cfg);
+  // 착륙 예측도 비싸므로 주기적으로만 갱신
+  p.landingPlanAgeS += dt;
+  if (p.landingPlanAgeS >= IMPACT_PREDICTION.landingPlanRefreshS) {
+    p.landingPlan = computeLandingPlan(tel, cfg);
+    p.landingPlanAgeS = 0;
+  }
+  p.ignitionAltitudeM = p.landingPlan.ignitionAltitudeM;
 
   // 손상 누적
   if (tel.heating > BOOSTER_HEATING_LIMIT) {
@@ -156,9 +175,9 @@ export function updateBoosterProgram(
   if (!b.finsDeployed && p.step !== 'BOOSTBACK') patch.finsDeployed = true;
   if (!b.legsDeployed && tel.altitudeM < LEG_DEPLOY_ALTITUDE_M && tel.verticalSpeedMps < 0) patch.legsDeployed = true;
 
-  const auto = autoBoosterCommand(p.step, b, tel, cfg);
+  const auto = autoBoosterCommand(p.step, b, tel, cfg, p.landingPlan);
   p.recommended = p.step === 'DESCENT'
-    ? { ...auto, throttle: landingBurnCommand(tel, cfg).throttle }
+    ? { ...auto, throttle: landingBurnCommand(tel, cfg, p.landingPlan).throttle }
     : auto;
 
   return { command: resolveCommand(p, b, tel, auto, input, difficulty, cfg, dt), patch, stepChanged, destroyed };
@@ -177,6 +196,7 @@ function resolveCommand(
   if (p.step === 'DONE') return auto;
   if (difficulty.autoConfirm) return auto;
 
+  if (input.hold && !difficulty.autoPitch) toggleAttitudeHold(p, input.hold);
   if (canToggleEngine(p, difficulty) && input.confirm) {
     p.engineRequest = !p.engineRequest;
     if (p.engineRequest) p.manualThrottle = auto.throttle > 0 ? auto.throttle : p.manualThrottle;
@@ -187,7 +207,7 @@ function resolveCommand(
   // 일반 모드: 착륙 구간만 점화·스로틀 수동, 자세·핀은 자동
   if (difficulty.autoPitch) {
     if (!normalModeManual(p.step)) return auto;
-    const pitchRad = engines > 0 ? landingBurnCommand(tel, cfg).pitchRad : tel.retrogradePitchRad;
+    const pitchRad = engines > 0 ? landingBurnCommand(tel, cfg, p.landingPlan).pitchRad : tel.retrogradePitchRad;
     return { engines, throttle: p.manualThrottle, pitchRad, finSteer: engines > 0 ? 0 : autoFinSteer(tel) };
   }
 
@@ -196,6 +216,32 @@ function resolveCommand(
     p.manualPitchRad = tel.retrogradePitchRad;
     return { engines, throttle: p.manualThrottle, pitchRad: tel.retrogradePitchRad, finSteer: -input.pitchAxis };
   }
-  p.manualPitchRad = wrapAngle(p.manualPitchRad + input.pitchAxis * BOOSTER_MANUAL_PITCH_RATE_RAD_PER_S * dt);
+  if (input.pitchAxis !== 0) p.attitudeHold = 'none'; // 직접 조작하면 자세 유지 해제
+  const landingPitch = engines > 0 && p.step === 'LANDING_BURN' ? landingBurnCommand(tel, cfg, p.landingPlan).pitchRad : null;
+  const held = holdPitch(p.attitudeHold, tel, landingPitch);
+  p.manualPitchRad =
+    held ?? wrapAngle(p.manualPitchRad + input.pitchAxis * BOOSTER_MANUAL_PITCH_RATE_RAD_PER_S * dt);
   return { engines, throttle: p.manualThrottle, pitchRad: p.manualPitchRad, finSteer: 0 };
+}
+
+/**
+ * 자세 유지 목표 피치.
+ * 역추진 유지는 착륙 연소 중이면 착륙선 쪽으로 수평 오차를 줄이는 착륙 자세(landingPitch)를,
+ * 속도가 거의 없으면(착지 직전) 연직 자세를 쓴다.
+ */
+export function holdPitch(hold: AttitudeHold, tel: BoosterTelemetry, landingPitch: number | null = null): number | null {
+  switch (hold) {
+    case 'none':
+      return null;
+    case 'boostback':
+      return BOOSTER_GUIDANCE.boostbackPitchRad;
+    case 'retrograde':
+      if (landingPitch !== null) return landingPitch;
+      return tel.speedMps < BOOSTER_GUIDANCE.retrogradeHoldMinSpeedMps ? Math.PI / 2 : tel.retrogradePitchRad;
+  }
+}
+
+/** 자세 유지 토글 (같은 키를 다시 누르면 해제). 리얼 모드에서만 의미가 있다 */
+export function toggleAttitudeHold(p: BoosterProgram, request: Exclude<AttitudeHold, 'none'>): void {
+  p.attitudeHold = p.attitudeHold === request ? 'none' : request;
 }

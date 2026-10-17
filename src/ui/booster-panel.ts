@@ -3,9 +3,16 @@
  */
 import { BOOSTER_HEATING_LIMIT, TOUCHDOWN_LIMITS } from '../data/booster-config';
 import { BOOSTER_STEP_LABELS } from '../mission/booster-guidance';
+import type { AttitudeHold } from '../mission/booster-program';
 import type { MissionContext } from '../mission/mission-types';
 import { formatAltitude, formatPercent } from '../utils/format';
 import { el, setText } from './dom';
+
+const HOLD_LABELS: Record<AttitudeHold, string> = {
+  none: '수동 (B·R로 고정)',
+  boostback: '부스트백 방향 (B)',
+  retrograde: '역추진·착륙 자세 (R)',
+};
 
 /** 이 거리 미만은 m로, 이상은 km로 표시 [m] */
 const KM_DISPLAY_THRESHOLD_M = 2_000;
@@ -32,6 +39,7 @@ export class BoosterPanel {
 
     const engine = el('div', 'tel-section');
     this.row(engine, 'engine', '엔진');
+    this.row(engine, 'hold', '자세 유지');
     this.row(engine, 'fuel', '추진제');
     this.row(engine, 'ignite', '착륙 연소 권장 점화');
     this.root.append(engine);
@@ -82,6 +90,7 @@ export class BoosterPanel {
     set('hs', `${t.horizontalSpeedMps.toFixed(1)} m/s`);
     set('engine', b.engines > 0 ? `${b.engines}기 · ${formatPercent(b.throttle)}` : '정지');
     set('fuel', `${(b.propellantKg / 1000).toFixed(1)} t`);
+    set('hold', ctx.difficulty.autoPitch ? '비행 컴퓨터' : HOLD_LABELS[p.attitudeHold]);
     set('ignite', p.ignitionAltitudeM > 0 ? formatAltitude(p.ignitionAltitudeM) : '-');
     set('impact', t.impactErrorM === null ? '-' : formatOffset(t.impactErrorM));
     set('offset', formatOffset(t.shipOffsetM));

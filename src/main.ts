@@ -3,6 +3,7 @@
  */
 import './ui/styles.css';
 import { AudioManager } from './audio/audio-manager';
+import { BestRecords, browserStorage } from './core/best-records';
 import { GameLoop } from './core/game-loop';
 import { KeyboardInput } from './core/input';
 import { TimeWarp } from './core/time-warp';
@@ -10,6 +11,7 @@ import { DIFFICULTIES, type DifficultyConfig } from './data/difficulty';
 import { FIXED_TIMESTEP_S } from './data/mission-config';
 import { HELIOS9_STACK } from './data/rocket-specs';
 import { Mission } from './mission/mission';
+import type { PilotInput } from './mission/mission-types';
 import { CAMERA_LABELS } from './scene/camera-rig';
 import { SceneManager } from './scene/scene-manager';
 import { Hud } from './ui/hud';
@@ -25,12 +27,14 @@ class Game {
   private readonly warp = new TimeWarp();
   private readonly hud = new Hud();
   private readonly audio = new AudioManager();
+  private readonly records = new BestRecords(browserStorage());
   private readonly startScreen: StartScreen;
   private readonly resultScreen: ResultScreen;
   private mission: Mission;
   private running = false;
   private paused = false;
   private confirmPending = false;
+  private holdPending: PilotInput['hold'] = null;
   private stepsThisFrame = 0;
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
@@ -41,6 +45,7 @@ class Game {
       menu: () => this.showMenu(),
     });
     uiRoot.append(this.hud.root, this.startScreen.root, this.resultScreen.root);
+    this.startScreen.showRecords(this.records);
 
     // 메뉴 뒤 배경용: 발사대 위 대기 중인 기체
     this.mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator);
@@ -67,15 +72,17 @@ class Game {
     this.hud.bind(this.mission);
     this.audio.bind(this.mission);
     this.mission.bus.on('mission:ended', (result) => {
+      const record = this.records.submit(difficulty.id, result);
       window.setTimeout(() => {
         this.running = false;
         this.hud.setVisible(false);
-        this.resultScreen.show(result);
+        this.resultScreen.show(result, record, this.mission.ctx.flightLog);
       }, RESULT_DELAY_MS);
     });
     this.warp.reset();
     this.paused = false;
     this.confirmPending = false;
+    this.holdPending = null;
     this.running = true;
     this.startScreen.setVisible(false);
     this.resultScreen.setVisible(false);
@@ -90,6 +97,7 @@ class Game {
     this.mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator);
     this.scene.bind(this.mission);
     this.audio.bind(this.mission);
+    this.startScreen.showRecords(this.records);
     this.startScreen.setVisible(true);
   }
 
@@ -114,6 +122,8 @@ class Game {
     if (pressed.has('warp')) this.warp.cycle();
     if (pressed.has('camera')) this.scene.cycleCamera(this.mission.ctx.booster !== null);
     if (pressed.has('confirm')) this.confirmPending = true;
+    if (pressed.has('holdRetrograde')) this.holdPending = 'retrograde';
+    if (pressed.has('holdBoostback')) this.holdPending = 'boostback';
   }
 
   private step(dt: number): void {
@@ -122,11 +132,13 @@ class Game {
         throttleAxis: this.input.throttleAxis,
         pitchAxis: this.input.pitchAxis,
         confirm: this.confirmPending,
+        hold: this.holdPending,
       },
       dt,
     );
-    // 승인 입력은 한 스텝에서만 소비
+    // 승인·자세 유지 입력은 한 스텝에서만 소비
     this.confirmPending = false;
+    this.holdPending = null;
     this.stepsThisFrame++;
   }
 

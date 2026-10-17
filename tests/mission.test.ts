@@ -6,6 +6,8 @@ import { COUNTDOWN_CALLOUTS } from '../src/data/mission-timeline';
 import { Mission } from '../src/mission/mission';
 import { NO_INPUT, type PhaseId, type PilotInput } from '../src/mission/mission-types';
 import { computeResult } from '../src/mission/scoring';
+import { autoFinSteer } from '../src/mission/booster-guidance';
+import { shouldAutoSeco } from '../src/mission/guidance';
 
 /** 일반 모드 플레이어 흉내: 권장 점화 고도에서 Space, 권장 스로틀을 W/S로 따라간다 */
 function skilledNormalPilot(m: Mission): PilotInput {
@@ -15,6 +17,41 @@ function skilledNormalPilot(m: Mission): PilotInput {
   const ignite = p.step === 'DESCENT' && !p.engineRequest && p.telemetry.altitudeM <= p.ignitionAltitudeM;
   const diff = p.recommended.throttle - p.manualThrottle;
   return { throttleAxis: Math.abs(diff) > 0.01 ? Math.sign(diff) : 0, pitchAxis: 0, confirm: ignite };
+}
+
+/**
+ * 리얼 모드 플레이어 흉내: 상승은 권장 피치·스로틀을 키로 따라가고, 부스터는 B/R 자세 고정과
+ * 화면 안내(0.3초 이상 유지될 때만 Space)를 따른다. 그리드 핀은 A/D로 낙하점 오차를 줄인다.
+ */
+function createRealPilot(): (m: Mission) => PilotInput {
+  let mismatchS = 0;
+  return (m) => {
+    const c = m.ctx;
+    const p = c.boosterProgram;
+    const b = c.booster;
+    if (m.phase.id !== 'BOOSTER_RETURN' || !p || !b) {
+      const dp = c.recommended.pitchRad - c.command.pitchRad;
+      const dt = c.recommended.throttle - c.command.throttle;
+      return {
+        throttleAxis: Math.abs(dt) > 0.01 ? Math.sign(dt) : 0,
+        pitchAxis: Math.abs(dp) > 0.002 ? Math.sign(dp) : 0,
+        confirm: m.phase.id !== 'ORBIT_INSERTION' || shouldAutoSeco(c.telemetry),
+      };
+    }
+    let hold: PilotInput['hold'] = null;
+    if (p.step === 'BOOSTBACK' && !p.boostbackFired && p.attitudeHold !== 'boostback') hold = 'boostback';
+    else if (p.step !== 'BOOSTBACK' && p.attitudeHold !== 'retrograde') hold = 'retrograde';
+    mismatchS = (p.recommended.engines > 0) !== p.engineRequest ? mismatchS + FIXED_TIMESTEP_S : 0;
+    const confirm = mismatchS >= 0.3;
+    if (confirm) mismatchS = 0;
+    const dthr = p.recommended.throttle - p.manualThrottle;
+    let pitchAxis = 0;
+    if (b.engines === 0 && b.finsDeployed) {
+      const steer = autoFinSteer(p.telemetry);
+      pitchAxis = Math.abs(steer) > 0.2 ? -Math.sign(steer) : 0;
+    }
+    return { throttleAxis: Math.abs(dthr) > 0.01 ? Math.sign(dthr) : 0, pitchAxis, confirm, hold };
+  };
 }
 
 /** 부스터 조종·SECO 구간을 빼고 Space를 누른다 */
@@ -76,6 +113,25 @@ describe('Mission 상태 머신', () => {
     runMission(mission, confirmOutsideBooster);
     expect(mission.ctx.result?.booster?.landed).toBe(false);
     expect(mission.ctx.result?.success).toBe(true);
+  });
+
+  it('리얼 모드: 안내와 자세 고정(B/R)을 따르면 직접 착륙할 수 있다', () => {
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.real);
+    runMission(mission, createRealPilot());
+    expect(mission.ctx.result?.success).toBe(true);
+    expect(mission.ctx.result?.booster?.landed).toBe(true);
+  });
+
+  it('리얼 모드: 직접 자세를 조작하면 자세 고정이 풀린다', () => {
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.real);
+    mission.start();
+    while (mission.phase.id !== 'BOOSTER_RETURN') {
+      mission.update(confirmOutsideBooster(mission), FIXED_TIMESTEP_S);
+    }
+    mission.update({ ...NO_INPUT, hold: 'boostback' }, FIXED_TIMESTEP_S);
+    expect(mission.ctx.boosterProgram?.attitudeHold).toBe('boostback');
+    mission.update({ ...NO_INPUT, pitchAxis: 1 }, FIXED_TIMESTEP_S);
+    expect(mission.ctx.boosterProgram?.attitudeHold).toBe('none');
   });
 
   it('리얼 모드: 부스터를 조종하지 않으면 잃는다', () => {

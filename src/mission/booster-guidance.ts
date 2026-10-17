@@ -127,6 +127,31 @@ export function landingIgnitionAltitude(tel: BoosterTelemetry, cfg: StackConfig)
   return landingBurnAltitudeLoss(tel, cfg, G.landingPlanThrottle) + G.ignitionMarginM;
 }
 
+/** 고속 구간이라 예측 기반 스로틀을 써야 하는지 */
+function needsPredictiveThrottle(tel: BoosterTelemetry): boolean {
+  return tel.altitudeM > G.landingAimAltitudeM * 2 && tel.verticalSpeedMps < -G.touchdownSpeedMps;
+}
+
+/**
+ * 착륙 계획 (비싼 전방 예측 결과). 매 물리 스텝이 아니라 주기적으로 갱신해 재사용한다.
+ */
+export interface LandingPlan {
+  /** 권장 점화 고도 [m] (해당 없으면 0) */
+  readonly ignitionAltitudeM: number;
+  /** 예측 기반 착륙 스로틀 (고속 구간이 아니면 null) */
+  readonly predictedThrottle: number | null;
+}
+
+export const NO_LANDING_PLAN: LandingPlan = { ignitionAltitudeM: 0, predictedThrottle: null };
+
+export function computeLandingPlan(tel: BoosterTelemetry, cfg: StackConfig): LandingPlan {
+  if (tel.altitudeM > LANDING_BURN_MAX_ALTITUDE_M || tel.verticalSpeedMps >= 0) return NO_LANDING_PLAN;
+  return {
+    ignitionAltitudeM: landingIgnitionAltitude(tel, cfg),
+    predictedThrottle: needsPredictiveThrottle(tel) ? predictiveLandingThrottle(tel, cfg) : null,
+  };
+}
+
 /** 남은 고도에서 딱 멈추는 스로틀 (항력 포함 예측 + 이분 탐색) */
 function predictiveLandingThrottle(tel: BoosterTelemetry, cfg: StackConfig): number {
   const goal = tel.altitudeM - G.landingAimAltitudeM;
@@ -141,10 +166,11 @@ function predictiveLandingThrottle(tel: BoosterTelemetry, cfg: StackConfig): num
   return hi;
 }
 
-/** 착륙 연소 중 권장 스로틀·자세 */
+/** 착륙 연소 중 권장 스로틀·자세. plan이 없으면 그 자리에서 예측한다 */
 export function landingBurnCommand(
   tel: BoosterTelemetry,
   cfg: StackConfig,
+  plan: LandingPlan | null = null,
 ): { throttle: number; pitchRad: number } {
   const h = Math.max(1, tel.altitudeM);
   const vs = tel.verticalSpeedMps;
@@ -153,9 +179,10 @@ export function landingBurnCommand(
   const fullThrust = boosterThrust(singleEngine(cfg), LANDING_BURN_ENGINES, 1, tel.altitudeM);
 
   let throttle: number;
-  if (tel.altitudeM > G.landingAimAltitudeM * 2 && vs < -target) {
+  if (needsPredictiveThrottle(tel)) {
     // 고속 구간: 항력 변화를 고려한 예측으로 스로틀 결정
-    throttle = predictiveLandingThrottle(tel, cfg);
+    // 캐시된 계획이 있으면 그 값을 쓰고(아직 높아 계획이 없으면 계획 스로틀), 없을 때만 즉석 예측
+    throttle = plan ? (plan.predictedThrottle ?? G.landingPlanThrottle) : predictiveLandingThrottle(tel, cfg);
   } else {
     // 마지막 수십 m: 등감속 운동으로 터치다운 속도에 맞춘다
     const required = vs < -target ? (vs * vs - target * target) / (2 * h) + g : g * G.touchdownHoverRatio;
@@ -195,6 +222,7 @@ export function autoBoosterCommand(
   b: BoosterState,
   tel: BoosterTelemetry,
   cfg: StackConfig,
+  plan: LandingPlan,
 ): BoosterCommand {
   const retro = tel.retrogradePitchRad;
   switch (step) {
@@ -217,7 +245,7 @@ export function autoBoosterCommand(
       return { engines: done ? 0 : BOOSTER_BURN_ENGINES, throttle: 1, pitchRad: retro, finSteer: 0 };
     }
     case 'DESCENT': {
-      const ignite = tel.altitudeM <= landingIgnitionAltitude(tel, cfg);
+      const ignite = tel.altitudeM <= plan.ignitionAltitudeM;
       return {
         engines: ignite ? LANDING_BURN_ENGINES : 0,
         throttle: G.landingPlanThrottle,
@@ -226,7 +254,7 @@ export function autoBoosterCommand(
       };
     }
     case 'LANDING_BURN': {
-      const cmd = landingBurnCommand(tel, cfg);
+      const cmd = landingBurnCommand(tel, cfg, plan);
       // 최소 스로틀로도 너무 감속해 떠오르면 끄고 다시 떨어지게 한다 (호버 불가 대비)
       const rising = tel.verticalSpeedMps > 0 && tel.altitudeM > G.hoverCutoffAltitudeM;
       return {

@@ -7,6 +7,7 @@ import type { VehicleCommand, VehicleState } from '../rocket/vehicle-state';
 import type { DifficultyConfig } from '../data/difficulty';
 import type { BoosterProgram } from './booster-program';
 import type { BoosterStep } from './booster-guidance';
+import type { FlightLog } from './flight-recorder';
 import type { BoosterOutcome } from './landing';
 import type { MissionResult } from './scoring';
 
@@ -45,6 +46,8 @@ export interface PilotInput {
   readonly throttleAxis: number;
   /** -1(피치 다운, 수평 쪽) ~ 1(피치 업, 연직 쪽) */
   readonly pitchAxis: number;
+  /** 리얼 모드 부스터 자세 유지 토글 요청 (R: 역추진, B: 부스트백, 해당 프레임 첫 스텝에서만) */
+  readonly hold?: 'retrograde' | 'boostback' | null;
   /** Space: 다음 단계 승인 / 점화 (해당 프레임 첫 스텝에서만 true) */
   readonly confirm: boolean;
 }
@@ -99,6 +102,8 @@ export interface MissionContext {
   prompt: string | null;
   outcome: MissionOutcome | null;
   result: MissionResult | null;
+  /** 결과 화면 그래프용 비행 기록 */
+  readonly flightLog: FlightLog;
 }
 
 export interface Phase {

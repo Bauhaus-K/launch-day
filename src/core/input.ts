@@ -1,7 +1,7 @@
 /**
  * 키보드 입력. 누르고 있는 키(축)와 한 번 눌림(엣지) 이벤트를 구분한다.
  */
-export type InputAction = 'confirm' | 'camera' | 'warp' | 'pause' | 'mute';
+export type InputAction = 'confirm' | 'camera' | 'warp' | 'pause' | 'mute' | 'holdRetrograde' | 'holdBoostback';
 
 const ACTION_KEYS: Record<string, InputAction> = {
   Space: 'confirm',
@@ -9,6 +9,8 @@ const ACTION_KEYS: Record<string, InputAction> = {
   KeyT: 'warp',
   Escape: 'pause',
   KeyM: 'mute',
+  KeyR: 'holdRetrograde',
+  KeyB: 'holdBoostback',
 };
 
 const THROTTLE_UP = ['KeyW', 'ShiftLeft', 'ShiftRight'];

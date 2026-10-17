@@ -10,6 +10,7 @@ import { computeTelemetry, stepVehicle } from '../physics/flight';
 import { createInitialVehicle } from '../rocket/stack';
 import type { StackConfig } from '../rocket/vehicle-config';
 import { checkBoosterTouchdown } from './booster-finish';
+import { createFlightLog, markEvent, recordBoosterEnd, recordFlight } from './flight-recorder';
 import { guidancePitch, guidanceThrottle, structuralLoadPa } from './guidance';
 import type { MissionContext, MissionEvents, Phase, PhaseId, PilotInput } from './mission-types';
 import { createBoosterReturnPhase } from './phases/booster-return-phase';
@@ -55,7 +56,9 @@ export class Mission {
       prompt: null,
       outcome: null,
       result: null,
+      flightLog: createFlightLog(),
     };
+    this.recordEvents();
 
     const list: Phase[] = [
       preLaunchPhase,
@@ -71,6 +74,21 @@ export class Mission {
     ];
     this.phases = Object.fromEntries(list.map((p) => [p.id, p]));
     this.current = preLaunchPhase;
+  }
+
+  /** 그래프에 표시할 주요 사건 시각 기록 */
+  private recordEvents(): void {
+    const ctx = this.ctx;
+    const log = ctx.flightLog;
+    this.bus.on('maxq:entered', () => markEvent(log, ctx.missionTimeS, 'Max-Q'));
+    this.bus.on('phase:changed', ({ to }) => {
+      if (to === 'MECO') markEvent(log, ctx.missionTimeS, 'MECO');
+      else if (to === 'SES') markEvent(log, ctx.missionTimeS, 'SES');
+    });
+    this.bus.on('engine:cutoff', ({ stage }) => {
+      if (stage === 2) markEvent(log, ctx.missionTimeS, 'SECO');
+    });
+    this.bus.on('booster:touchdown', () => recordBoosterEnd(log, ctx));
   }
 
   /** 첫 단계 진입. 이벤트 구독을 마친 뒤 호출한다 */
@@ -101,6 +119,7 @@ export class Mission {
       this.applyControls(input, dt);
       this.stepPhysics(dt);
       this.updateStats(dt);
+      recordFlight(ctx.flightLog, ctx);
       const failure = this.checkFailure();
       if (failure) {
         ctx.outcome = { success: false, reason: failure };

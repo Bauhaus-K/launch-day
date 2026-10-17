@@ -105,6 +105,7 @@ export class Hud {
       '<kbd>Space</kbd> 승인/점화',
       '<kbd>W</kbd>/<kbd>S</kbd> 스로틀',
       '<kbd>A</kbd>/<kbd>D</kbd> 피치 (부스터 하강 중: 그리드 핀)',
+      '리얼 모드 부스터: <kbd>B</kbd> 부스트백 · <kbd>R</kbd> 역추진 자세 고정',
       '<kbd>C</kbd> 카메라 · <kbd>T</kbd> 배속 · <kbd>M</kbd> 소리 · <kbd>Esc</kbd> 일시정지',
     ].join('<br>');
 
