@@ -195,6 +195,7 @@ export const ko = {
   'camera.chase': '추적',
   'camera.onboard': '온보드',
   'camera.booster': '부스터',
+  'camera.deck': '착륙선 갑판',
 
   'hold.none': '수동 (B·R로 고정)',
   'hold.boostback': '부스트백 방향 (B)',

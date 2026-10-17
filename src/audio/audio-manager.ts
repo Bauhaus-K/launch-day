@@ -20,7 +20,7 @@ import { altitudeOf } from '../physics/gravity';
 import type { Vec2 } from '../physics/vec2';
 import type { Mission } from '../mission/mission';
 import type { MissionContext } from '../mission/mission-types';
-import type { CameraMode } from '../scene/camera-rig';
+import { isBoosterView, type CameraMode } from '../scene/camera-rig';
 import { engineMix, SILENT_ENGINE, type EngineMix } from './audio-mix';
 import { EngineSound } from './engine-sound';
 import { createBrownNoise, createWhiteNoise, playSound } from './synth';
@@ -192,7 +192,7 @@ export class AudioManager {
     let source: Vec2;
     let throttle: number;
     let thrustFraction: number;
-    if (cameraMode === 'booster' && b && b.status === 'flying') {
+    if (isBoosterView(cameraMode) && b && b.status === 'flying') {
       source = b.pos;
       throttle = b.engines > 0 ? b.throttle : 0;
       thrustFraction = b.engines / STAGE1_ENGINE_COUNT;

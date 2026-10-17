@@ -198,6 +198,7 @@ export const ja: Dictionary = {
   'camera.chase': '追跡',
   'camera.onboard': 'オンボード',
   'camera.booster': 'ブースター',
+  'camera.deck': '着陸船デッキ',
 
   'hold.none': '手動（B・R で保持）',
   'hold.boostback': 'ブーストバック方向（B）',

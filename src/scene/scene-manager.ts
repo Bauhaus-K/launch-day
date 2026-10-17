@@ -9,6 +9,7 @@ import { LEG_DEPLOY_DURATION_S } from '../data/booster-config';
 import { MODEL_DIMENSIONS } from '../data/rocket-specs';
 import {
   BOOSTER_FLAME_SCALE,
+  CAMERA_SHAKE,
   COLORS,
   RENDER,
   SEPARATION_VISUAL,
@@ -24,11 +25,12 @@ import { altitudeOf } from '../physics/gravity';
 import { length, lerp, sub, vec2, type Vec2 } from '../physics/vec2';
 import type { Mission } from '../mission/mission';
 import type { MissionContext } from '../mission/mission-types';
-import { CameraRig, type CameraMode } from './camera-rig';
+import { CameraRig, isBoosterView, type CameraMode } from './camera-rig';
 import { Earth } from './earth';
 import { createStage1Flame, createStage2Flame, type EngineFlame } from './exhaust';
 import { LandingShip } from './landing-ship';
 import { LaunchPad } from './launch-pad';
+import { PostProcessing } from './post-processing';
 import { RocketModel, UPPER_STAGE_CENTER_M, UPPER_STAGE_OFFSET_M } from './rocket-model';
 import { SmokeParticles } from './smoke-particles';
 
@@ -52,6 +54,7 @@ export class SceneManager {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly rig: CameraRig;
+  private readonly post: PostProcessing;
   private readonly earth = new Earth();
   private readonly pad = new LaunchPad();
   private readonly ship = new LandingShip();
@@ -74,6 +77,7 @@ export class SceneManager {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.maxPixelRatio));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.rig = new CameraRig(window.innerWidth / window.innerHeight);
+    this.post = new PostProcessing(this.renderer, this.scene, this.rig.camera);
 
     const sun = new THREE.DirectionalLight(COLORS.sun, 2.6);
     sun.position.copy(SUN_DIRECTION);
@@ -102,7 +106,7 @@ export class SceneManager {
   }
 
   cycleCamera(boosterAvailable: boolean): CameraMode {
-    return this.rig.cycle(boosterAvailable);
+    return this.rig.cycle(boosterAvailable, this.ship.placed);
   }
 
   /** 새 미션에 연결 (재시작 시 연출 상태 초기화) */
@@ -113,7 +117,7 @@ export class SceneManager {
     this.legDeployStartS = null;
     this.rocket.setLegDeploy(0);
     this.ship.place(null);
-    this.rig.mode = 'pad';
+    this.rig.reset();
     for (const half of this.rocket.fairingHalves) {
       half.position.set(0, MODEL_DIMENSIONS.stage2NozzleLengthM + MODEL_DIMENSIONS.stage2LengthM, 0);
       half.quaternion.identity();
@@ -121,14 +125,37 @@ export class SceneManager {
     }
 
     const ctx = mission.ctx;
+    const bus = mission.bus;
+    const impulse = CAMERA_SHAKE.impulse;
     this.unsubscribe = [
-      mission.bus.on('stage:separated', () => this.ship.place(ctx.boosterProgram?.shipDownrangeM ?? null)),
-      // 부스터 귀환 구간에서는 카메라가 부스터를 따라가고, 끝나면 2단으로 돌아온다
-      mission.bus.on('phase:changed', (e) => {
-        if (e.to === 'BOOSTER_RETURN') this.rig.mode = 'booster';
-        else if (e.from === 'BOOSTER_RETURN') this.rig.mode = 'chase';
+      bus.on('stage:separated', () => {
+        this.ship.place(ctx.boosterProgram?.shipDownrangeM ?? null);
+        this.rig.addTrauma(impulse.separation);
+        this.rig.playSeparationShot();
       }),
-      mission.bus.on('fairing:separated', () => this.startFairingFlight(ctx)),
+      // 부스터 귀환 구간에서는 카메라가 부스터를 따라가고, 끝나면 2단으로 돌아온다
+      bus.on('phase:changed', (e) => {
+        if (e.to === 'BOOSTER_RETURN') this.rig.setMode('booster');
+        else if (e.from === 'BOOSTER_RETURN') this.rig.setMode('chase');
+      }),
+      bus.on('fairing:separated', () => {
+        this.startFairingFlight(ctx);
+        this.rig.addTrauma(impulse.fairing);
+      }),
+      bus.on('engine:ignition', ({ stage }) => {
+        this.rig.addTrauma(stage === 1 ? impulse.stage1Ignition : impulse.stage2Ignition);
+        if (stage === 1) this.post.triggerFlash(1);
+      }),
+      bus.on('booster:step', ({ step }) => {
+        if (step === 'BOOSTBACK' || step === 'ENTRY_BURN' || step === 'LANDING_BURN') {
+          this.rig.addTrauma(impulse.boosterBurn);
+        }
+        // 관람 모드: 착륙 연소부터 갑판 카메라로 자동 전환 (중계 화면 느낌)
+        if (step === 'LANDING_BURN' && ctx.difficulty.id === 'spectator' && this.rig.mode === 'booster') {
+          this.rig.setMode('deck');
+        }
+      }),
+      bus.on('booster:touchdown', (o) => this.rig.addTrauma(o.landed ? impulse.touchdown : impulse.crash)),
     ];
   }
 
@@ -176,6 +203,7 @@ export class SceneManager {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.renderer.setSize(w, h, false);
+    this.post.setSize(w, h, this.renderer.getPixelRatio());
     this.rig.camera.aspect = w / h;
     this.rig.camera.updateProjectionMatrix();
   }
@@ -192,7 +220,9 @@ export class SceneManager {
     const boosterPos = booster ? lerp(ctx.previousBoosterPos ?? booster.pos, booster.pos, alpha) : null;
 
     // 플로팅 원점: 부스터 카메라면 부스터, 아니면 2단
-    const focus = this.rig.mode === 'booster' && boosterPos ? boosterPos : vehiclePos;
+    const focus = isBoosterView(this.rig.mode) && boosterPos ? boosterPos : vehiclePos;
+    // 화염·흔들림 애니메이션 시간 (일시정지 중에는 멈춘다)
+    const animDt = simDt > 0 ? frameDt : 0;
     const altitude = altitudeOf(focus);
     const up = toV3(radialUnit(focus));
 
@@ -214,10 +244,10 @@ export class SceneManager {
       this.rocket.booster.visible = true;
       this.rocket.booster.position.copy(vehicleRel);
       this.rocket.booster.quaternion.copy(stackQuat);
-      this.stage1Flame.update(v.stage1PropellantKg > 0 ? v.throttle : 0, vehiclePr);
+      this.stage1Flame.update(v.stage1PropellantKg > 0 ? v.throttle : 0, vehiclePr, 1, animDt);
       this.stage2Flame.update(0, vehiclePr);
     } else {
-      this.stage2Flame.update(v.stage2PropellantKg > 0 ? v.throttle : 0, vehiclePr);
+      this.stage2Flame.update(v.stage2PropellantKg > 0 ? v.throttle : 0, vehiclePr, 1, animDt);
       this.rocket.booster.visible = booster !== null;
       if (booster && boosterPos) {
         boosterAxis = toV3(bodyAxis(boosterPos, booster.pitchRad));
@@ -225,7 +255,12 @@ export class SceneManager {
         this.rocket.booster.quaternion.setFromUnitVectors(Y_AXIS, boosterAxis);
         boosterCenter = this.rocket.booster.position.clone().addScaledVector(boosterAxis, BOOSTER_CENTER_M);
         const flameScale = BOOSTER_FLAME_SCALE[booster.engines] ?? 1;
-        this.stage1Flame.update(booster.engines > 0 ? booster.throttle : 0, pressureRatio(altitudeOf(boosterPos)), flameScale);
+        this.stage1Flame.update(
+          booster.engines > 0 ? booster.throttle : 0,
+          pressureRatio(altitudeOf(boosterPos)),
+          flameScale,
+          animDt,
+        );
         this.updateLegs(booster.legsDeployed, ctx.missionTimeS);
       } else {
         this.stage1Flame.update(0, vehiclePr);
@@ -251,11 +286,48 @@ export class SceneManager {
     this.hemi.intensity = 1.1 * (1 - skyT) + 0.15;
 
     const upperCenter = vehicleRel.clone().addScaledVector(axis, UPPER_STAGE_OFFSET_M + UPPER_STAGE_CENTER_M);
-    this.rig.update({ focus: toV3(focus), axis, up, upperCenter, boosterCenter, boosterAxis }, frameDt);
+    const deck = this.ship.deckCamera();
+    this.rig.setRumble(simDt > 0 ? this.rumbleLevel(ctx) : 0);
+    this.rig.update(
+      {
+        focus: toV3(focus),
+        axis,
+        up,
+        upperCenter,
+        boosterCenter,
+        boosterAxis,
+        deckCamera: deck?.position ?? null,
+        deckUp: deck?.up ?? null,
+      },
+      frameDt,
+    );
     this.stars.position.copy(this.rig.camera.position);
     this.smoke.setViewport(this.renderer.domElement.height, this.rig.camera.fov);
 
-    this.renderer.render(this.scene, this.rig.camera);
+    this.post.render(frameDt);
+  }
+
+  /** 현재 카메라가 느끼는 지속 진동 (엔진 굉음·동압·착륙 연소) 0~1 */
+  private rumbleLevel(ctx: MissionContext): number {
+    const s = CAMERA_SHAKE;
+    const v = ctx.vehicle;
+    const mode = this.rig.mode;
+    if (isBoosterView(mode)) {
+      const b = ctx.booster;
+      if (!b || b.status !== 'flying' || b.engines === 0) return 0;
+      const low = 1 - smoothstep(0, s.boosterRumbleAltitudeM, altitudeOf(b.pos));
+      return s.boosterRumble * b.throttle * low;
+    }
+    const burning =
+      (v.activeStage === 1 ? v.stage1PropellantKg : v.stage2PropellantKg) > 0 ? v.throttle : 0;
+    if (mode === 'pad') {
+      if (v.activeStage !== 1) return 0;
+      const low = 1 - smoothstep(0, s.padRumbleAltitudeM, altitudeOf(v.pos));
+      return s.padRumble * burning * low;
+    }
+    const q = Math.min(1, ctx.telemetry.dynamicPressurePa / s.maxQReferencePa);
+    const engine = mode === 'onboard' ? s.onboardEngineRumble * burning : 0;
+    return Math.max(engine, s.maxQRumble * q * q);
   }
 
   private updateLegs(deployed: boolean, missionTimeS: number): void {

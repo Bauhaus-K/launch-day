@@ -12,7 +12,7 @@ export const RENDER = {
 } as const;
 
 export const COLORS = {
-  skyLow: 0x7fb6e8,
+  skyLow: 0x5a9de0,
   skyHigh: 0x02040a,
   ocean: '#1d4f86',
   oceanDeep: '#0f2f5c',
@@ -25,7 +25,7 @@ export const COLORS = {
   interstage: 0x1d1f22,
   nozzle: 0x3a3330,
   flameOuter: 0xff8a2a,
-  flameCore: 0xfff2c8,
+  flameCore: 0xffe2a8,
   vacuumFlame: 0x8fb7ff,
   smoke: 0xd9d6d0,
   atmosphereGlow: 0x5aa8ff,
@@ -95,7 +95,6 @@ export const EXHAUST = {
   stage2FlameRadiusM: 1.2,
   /** 진공에서 화염 폭이 커지는 배율 */
   vacuumExpansion: 5,
-  flickerAmount: 0.08,
 } as const;
 
 export const SMOKE = {
@@ -136,4 +135,86 @@ export const SEPARATION_VISUAL = {
   fairingSpinRadPerS: 0.4,
   /** 페어링을 렌더링하는 시간 [s] */
   fairingVisibleS: 40,
+} as const;
+
+/** 후처리: 톤매핑·블룸·비네트 */
+export const POST = {
+  /** ACES 톤매핑 노출 */
+  exposure: 1.05,
+  /** 이 밝기(HDR 선형값)를 넘는 부분만 번진다 — 화염·섬광 위주 */
+  bloomThreshold: 1.1,
+  bloomStrength: 0.5,
+  bloomRadius: 0.4,
+  /** 화면 가장자리 어두워지는 정도 (0~1) */
+  vignetteStrength: 0.35,
+  /** 후처리 렌더 타깃 MSAA 샘플 수 */
+  msaaSamples: 4,
+  /** 점화 섬광 시 노출 증가량, 감쇠 시상수 [s] */
+  flashExposureBoost: 0.6,
+  flashDecayS: 0.35,
+} as const;
+
+/** 셰이더 화염 연출 */
+export const FLAME_FX = {
+  /** HDR 밝기 배율 (블룸 임계값을 넘도록 1보다 크게) */
+  coreIntensity: 2,
+  outerIntensity: 1.6,
+  /** 노이즈가 노즐에서 끝으로 흘러가는 속도 [화염 길이/s] */
+  scrollSpeed: 2.4,
+  /** 충격 다이아몬드(마하 디스크) 개수와 밝기 — 외기압이 높을수록 선명 */
+  shockDiamondCount: 5,
+  shockDiamondBoost: 2.5,
+  /** 점화 섬광: 크기·밝기 증가량, 감쇠 시상수 [s] */
+  ignitionFlashBoost: 1.2,
+  ignitionFlashDecayS: 0.5,
+  /** 부드러운 깜빡임 진폭과 주파수 [Hz] */
+  flickerAmount: 0.06,
+  flickerHz: 13,
+} as const;
+
+/**
+ * 카메라 흔들림 (트라우마 모델: 흔들림 = trauma², 시간에 따라 감쇠).
+ * 진폭은 시야각에 비례하는 각도로 줘서 망원(발사대) 카메라에서도 일정하게 보인다.
+ */
+export const CAMERA_SHAKE = {
+  /** trauma 1일 때 최대 회전 = 시야각 × 이 비율 */
+  maxFovFraction: 0.035,
+  maxRollRad: 0.02,
+  /** 초당 trauma 감소량 */
+  decayPerS: 0.9,
+  /** 흔들림 기본 주파수 [Hz] */
+  frequencyHz: 17,
+  /** 이벤트별 순간 충격량 (0~1) */
+  impulse: {
+    stage1Ignition: 0.55,
+    stage2Ignition: 0.3,
+    separation: 0.5,
+    fairing: 0.2,
+    boosterBurn: 0.3,
+    touchdown: 0.6,
+    crash: 1,
+  },
+  /** 발사대 카메라: 이 고도 아래에서 엔진 굉음 진동 [m] */
+  padRumbleAltitudeM: 4_000,
+  padRumble: 0.55,
+  /** 추적·온보드 카메라: 이 동압에서 진동이 maxQRumble 이 된다 [Pa] */
+  maxQReferencePa: 32_000,
+  maxQRumble: 0.5,
+  /** 엔진이 켜져 있을 때 온보드 기본 진동 */
+  onboardEngineRumble: 0.18,
+  /** 부스터 카메라: 이 고도 아래 착륙 연소 진동 [m] */
+  boosterRumbleAltitudeM: 6_000,
+  boosterRumble: 0.3,
+} as const;
+
+/** 시네마틱 컷 */
+export const CINEMATIC = {
+  /** 단 분리 직후 두 기체를 함께 담는 측면 컷 길이 [s, 실제 시간] */
+  separationShotS: 6,
+  separationSideM: 160,
+  /** 갑판 카메라: 착륙선 기준 위치 [m] (x 다운레인지, y 위, z 측면) */
+  deckCameraOffset: { x: -70, y: 12, z: 140 },
+  /** 갑판 카메라가 기체를 담기 위해 유지하는 시야 높이 [m] */
+  deckFramingM: 140,
+  deckMinFovDeg: 0.4,
 } as const;

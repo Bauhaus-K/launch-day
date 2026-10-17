@@ -202,6 +202,7 @@ export const en: Dictionary = {
   'camera.chase': 'Chase',
   'camera.onboard': 'Onboard',
   'camera.booster': 'Booster',
+  'camera.deck': 'Drone ship deck',
 
   'hold.none': 'Manual (hold with B·R)',
   'hold.boostback': 'Boostback heading (B)',

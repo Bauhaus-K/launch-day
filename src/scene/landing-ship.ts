@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import { LANDING_DECK_HALF_LENGTH_M, LANDING_DECK_WIDTH_M } from '../data/booster-config';
-import { COLORS, LANDING_SHIP } from '../data/scene-config';
+import { CINEMATIC, COLORS, LANDING_SHIP } from '../data/scene-config';
 import { surfacePoint } from '../physics/trajectory';
 import type { Vec2 } from '../physics/vec2';
 
@@ -81,8 +81,21 @@ export class LandingShip {
     this.root.visible = true;
   }
 
+  get placed(): boolean {
+    return this.world !== null;
+  }
+
   update(focus: Vec2): void {
     if (!this.world) return;
     this.root.position.set(this.world.x - focus.x, this.world.y - focus.y, 0);
+  }
+
+  /** 갑판 카메라 위치 (초점 기준 상대 좌표, update 이후 호출). 착륙선이 없으면 null */
+  deckCamera(): { position: THREE.Vector3; up: THREE.Vector3 } | null {
+    if (!this.world) return null;
+    const o = CINEMATIC.deckCameraOffset;
+    const position = new THREE.Vector3(o.x, o.y, o.z).applyQuaternion(this.root.quaternion).add(this.root.position);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.root.quaternion);
+    return { position, up };
   }
 }
