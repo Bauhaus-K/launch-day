@@ -70,6 +70,7 @@ export class Hud {
   private readonly warpChip = el('div', 'panel hud-chip');
   private readonly cameraChip = el('div', 'panel hud-chip');
   private readonly modeChip = el('div', 'panel hud-chip');
+  private readonly soundChip = el('div', 'panel hud-chip');
   private readonly telemetry = el('div', 'panel hud-telemetry');
   private readonly boosterPanel = new BoosterPanel();
   private readonly messages = el('div', 'hud-messages');
@@ -94,7 +95,7 @@ export class Hud {
     for (let i = 0; i < TIMELINE.length; i++) this.timeline.append(el('span'));
 
     const topRight = el('div', 'hud-top-right');
-    topRight.append(this.modeChip, this.cameraChip, this.warpChip);
+    topRight.append(this.modeChip, this.soundChip, this.cameraChip, this.warpChip);
 
     this.buildTelemetry();
     this.buildChecklist();
@@ -104,7 +105,7 @@ export class Hud {
       '<kbd>Space</kbd> 승인/점화',
       '<kbd>W</kbd>/<kbd>S</kbd> 스로틀',
       '<kbd>A</kbd>/<kbd>D</kbd> 피치 (부스터 하강 중: 그리드 핀)',
-      '<kbd>C</kbd> 카메라 · <kbd>T</kbd> 배속 · <kbd>Esc</kbd> 일시정지',
+      '<kbd>C</kbd> 카메라 · <kbd>T</kbd> 배속 · <kbd>M</kbd> 소리 · <kbd>Esc</kbd> 일시정지',
     ].join('<br>');
 
     this.prompt.style.display = 'none';
@@ -212,7 +213,10 @@ export class Hud {
     this.root.style.display = visible ? '' : 'none';
   }
 
-  update(mission: Mission, info: { warp: number; warpLocked: boolean; camera: string; paused: boolean }): void {
+  update(
+    mission: Mission,
+    info: { warp: number; warpLocked: boolean; camera: string; paused: boolean; muted: boolean },
+  ): void {
     const ctx = mission.ctx;
     const tel = ctx.telemetry;
     const v = ctx.vehicle;
@@ -228,6 +232,7 @@ export class Hud {
     setHtml(this.warpChip, `배속 <b>${info.warp}x</b>${info.warpLocked ? ' (제한)' : ''}`);
     this.warpChip.classList.toggle('locked', info.warpLocked);
     setHtml(this.cameraChip, `카메라 <b>${info.camera}</b>`);
+    setHtml(this.soundChip, `소리 <b>${info.muted ? '꺼짐' : '켜짐'}</b>`);
     this.pauseOverlay.style.display = info.paused ? '' : 'none';
 
     const set = (key: string, text: string) => {

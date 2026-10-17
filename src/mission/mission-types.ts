@@ -27,6 +27,9 @@ export type MessageTone = 'info' | 'success' | 'warn' | 'danger';
 export interface MissionEvents {
   'phase:changed': { readonly from: PhaseId | null; readonly to: PhaseId };
   'mission:message': { readonly text: string; readonly tone: MessageTone };
+  /** 카운트다운 콜아웃 시각 (T- 초) */
+  'countdown:tick': { readonly tMinusS: number };
+  'maxq:entered': Record<string, never>;
   'engine:ignition': { readonly stage: 1 | 2 };
   'engine:cutoff': { readonly stage: 1 | 2 };
   'stage:separated': { readonly missionTimeS: number };

@@ -21,6 +21,7 @@ export function createCountdownPhase(): Phase {
       const t = ctx.missionTimeS;
       for (let c = COUNTDOWN_CALLOUTS[nextCallout]; c && -c.tMinusS <= t; c = COUNTDOWN_CALLOUTS[nextCallout]) {
         say(ctx, c.text);
+        ctx.bus.emit('countdown:tick', { tMinusS: c.tMinusS });
         nextCallout++;
       }
 

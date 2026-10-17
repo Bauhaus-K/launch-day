@@ -29,6 +29,7 @@ export function createMaxQPhase(): Phase {
 
       if (!enteredMaxQ && stats.loadRatio >= STRUCTURE.warpLockRatio) {
         enteredMaxQ = true;
+        ctx.bus.emit('maxq:entered', {});
         say(ctx, '최대 동압(Max-Q) 구간 진입. 기체 하중에 주의하세요.', 'warn');
       }
       if (

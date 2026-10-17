@@ -33,7 +33,7 @@ export class StartScreen {
     const keys = el('div', 'keys');
     keys.innerHTML = [
       '<kbd>Space</kbd> 다음 단계 승인 / 점화 &nbsp; <kbd>W</kbd><kbd>S</kbd> 또는 <kbd>Shift</kbd><kbd>Ctrl</kbd> 스로틀',
-      '<kbd>A</kbd><kbd>D</kbd> / 방향키 피치 &nbsp; <kbd>C</kbd> 카메라 &nbsp; <kbd>T</kbd> 시간 배속 &nbsp; <kbd>Esc</kbd> 일시정지',
+      '<kbd>A</kbd><kbd>D</kbd> / 방향키 피치 &nbsp; <kbd>C</kbd> 카메라 &nbsp; <kbd>T</kbd> 시간 배속 &nbsp; <kbd>M</kbd> 소리 켜기/끄기 &nbsp; <kbd>Esc</kbd> 일시정지',
     ].join('<br>');
     card.append(keys);
 

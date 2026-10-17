@@ -2,6 +2,7 @@
  * 진입점: 씬·UI·입력·미션을 연결하고 게임 루프를 시작한다.
  */
 import './ui/styles.css';
+import { AudioManager } from './audio/audio-manager';
 import { GameLoop } from './core/game-loop';
 import { KeyboardInput } from './core/input';
 import { TimeWarp } from './core/time-warp';
@@ -23,6 +24,7 @@ class Game {
   private readonly input = new KeyboardInput(window);
   private readonly warp = new TimeWarp();
   private readonly hud = new Hud();
+  private readonly audio = new AudioManager();
   private readonly startScreen: StartScreen;
   private readonly resultScreen: ResultScreen;
   private mission: Mission;
@@ -58,8 +60,12 @@ class Game {
     // 클릭한 버튼에 포커스가 남아 Space가 버튼을 다시 누르지 않도록
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     this.mission = new Mission(HELIOS9_STACK, difficulty);
+    // 클릭 직후라 브라우저가 오디오 재생을 허용한다
+    this.audio.unlock();
+    this.audio.setPaused(false);
     this.scene.bind(this.mission);
     this.hud.bind(this.mission);
+    this.audio.bind(this.mission);
     this.mission.bus.on('mission:ended', (result) => {
       window.setTimeout(() => {
         this.running = false;
@@ -83,6 +89,7 @@ class Game {
     this.hud.setVisible(false);
     this.mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator);
     this.scene.bind(this.mission);
+    this.audio.bind(this.mission);
     this.startScreen.setVisible(true);
   }
 
@@ -98,8 +105,12 @@ class Game {
   private beginFrame(): void {
     this.stepsThisFrame = 0;
     const pressed = this.input.consumePressed();
+    if (pressed.has('mute')) this.audio.toggleMute();
     if (!this.running) return;
-    if (pressed.has('pause')) this.paused = !this.paused;
+    if (pressed.has('pause')) {
+      this.paused = !this.paused;
+      this.audio.setPaused(this.paused);
+    }
     if (pressed.has('warp')) this.warp.cycle();
     if (pressed.has('camera')) this.scene.cycleCamera(this.mission.ctx.booster !== null);
     if (pressed.has('confirm')) this.confirmPending = true;
@@ -122,6 +133,7 @@ class Game {
   private render(alpha: number, frameDt: number): void {
     const simDt = this.stepsThisFrame * FIXED_TIMESTEP_S;
     this.scene.render(this.mission.ctx, alpha, frameDt, simDt);
+    this.audio.update(this.mission.ctx, this.scene.cameraMode, this.running);
     if (this.running) {
       const maxWarp = this.mission.maxWarp();
       this.hud.update(this.mission, {
@@ -129,6 +141,7 @@ class Game {
         warpLocked: this.warp.selected > maxWarp,
         camera: CAMERA_LABELS[this.scene.cameraMode],
         paused: this.paused,
+        muted: this.audio.isMuted,
       });
     }
   }
