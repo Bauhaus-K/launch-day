@@ -74,6 +74,13 @@ export class LaunchPad {
       mast.position.set(x, LIGHTNING_MAST_HEIGHT_M / 2, z);
       this.root.add(mast);
     }
+    // 발사탑·피뢰탑은 그림자를 드리우고, 패드는 받는다
+    this.root.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        o.castShadow = o !== pad && o !== trench;
+        o.receiveShadow = true;
+      }
+    });
   }
 
   update(focus: Vec2): void {

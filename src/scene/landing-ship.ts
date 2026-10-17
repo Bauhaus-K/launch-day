@@ -65,6 +65,12 @@ export class LandingShip {
     ocean.position.y = -LANDING_SHIP.draftM;
     this.root.add(ocean);
 
+    this.root.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        o.castShadow = o !== ocean;
+        o.receiveShadow = true;
+      }
+    });
     this.root.visible = false;
   }
 

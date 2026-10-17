@@ -113,7 +113,9 @@ function createLocalCap(capAngle: number): THREE.Mesh {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
-  return new THREE.Mesh(geometry, material);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 function createAtmosphere(): THREE.Mesh {
