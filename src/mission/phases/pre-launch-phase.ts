@@ -18,6 +18,7 @@ import {
 } from '../checklist';
 import type { MissionContext, Phase, PhaseId, PilotInput } from '../mission-types';
 import { say } from './phase-helpers';
+import { t } from '../../i18n';
 
 /** 체크리스트 완료 후 관람 모드가 카운트다운을 시작하기까지 [s] */
 const AUTO_COUNTDOWN_DELAY_S = 1.5;
@@ -26,16 +27,16 @@ function announce(ctx: MissionContext, outcome: DecisionOutcome): void {
   const { item } = outcome;
   switch (outcome.kind) {
     case 'go':
-      say(ctx, `${item.label}: GO`, 'success');
+      say(ctx, t('msg.checklist.go', { item: item.label }), 'success');
       break;
     case 'missed-fault':
-      say(ctx, `판단 오류 — ${item.label}은(는) 한계를 넘었습니다. ${item.missedMessage}`, 'danger');
+      say(ctx, t('msg.checklist.missed', { item: item.label, detail: item.missedMessage }), 'danger');
       break;
     case 'correct-hold':
-      say(ctx, `홀드 — ${item.label} 한계 초과 확인. ${item.fixMessage}`, 'warn');
+      say(ctx, t('msg.checklist.correctHold', { item: item.label, detail: item.fixMessage }), 'warn');
       break;
     case 'false-hold':
-      say(ctx, `불필요한 홀드 — ${item.label}은(는) 정상 범위였습니다. 다시 판단하세요.`, 'warn');
+      say(ctx, t('msg.checklist.falseHold', { item: item.label }), 'warn');
       break;
   }
   ctx.bus.emit('checklist:decision', outcome);
@@ -73,7 +74,7 @@ export function createPreLaunchPhase(): Phase {
           ctx.prompt = null;
           return null;
         }
-        ctx.prompt = ctx.difficulty.autoConfirm ? null : 'SPACE  GO   ·   H  NO-GO (홀드)';
+        ctx.prompt = ctx.difficulty.autoConfirm ? null : t('prompt.checklist');
         const decision = playerDecision(ctx, input);
         const outcome = decision ? decide(s, decision) : null;
         if (outcome) announce(ctx, outcome);
@@ -84,13 +85,13 @@ export function createPreLaunchPhase(): Phase {
         const missed = s.missedFaults;
         say(
           ctx,
-          missed === 0 ? '모든 항목 GO. 발사 준비 완료.' : `점검 완료 — 놓친 이상 ${missed}건을 안고 발사합니다.`,
+          missed === 0 ? t('msg.checklist.allGo') : t('msg.checklist.missedSummary', { count: missed }),
           missed === 0 ? 'success' : 'danger',
         );
         return null;
       }
 
-      ctx.prompt = 'SPACE  카운트다운 시작';
+      ctx.prompt = t('prompt.countdown');
       const since = ctx.phaseTimeS - (completedAtS ?? 0);
       if (ctx.difficulty.autoConfirm) return since >= AUTO_COUNTDOWN_DELAY_S ? 'COUNTDOWN' : null;
       return input.confirm && since > 0 ? 'COUNTDOWN' : null;

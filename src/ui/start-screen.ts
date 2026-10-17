@@ -6,6 +6,8 @@ import { DIFFICULTIES, type DifficultyConfig, type DifficultyId } from '../data/
 import { TARGET_ORBIT } from '../data/mission-config';
 import { COMPANY_NAME, ROCKET_NAME } from '../data/rocket-specs';
 import { el } from './dom';
+import { GlossaryDialog } from './glossary-dialog';
+import { getLocale, LOCALES, setLocale, t } from '../i18n';
 
 export class StartScreen {
   readonly root = el('div', 'screen');
@@ -13,12 +15,13 @@ export class StartScreen {
 
   constructor(onSelect: (difficulty: DifficultyConfig) => void) {
     const card = el('div', 'panel screen-card');
+    card.append(this.languagePicker());
     card.append(
       el('h1', undefined, 'LAUNCH DAY'),
       el(
         'p',
         'subtitle',
-        `${COMPANY_NAME}의 재사용 로켓 「${ROCKET_NAME}」를 고도 ${TARGET_ORBIT.altitudeM / 1000} km 원궤도에 올려 보세요.`,
+        t('start.subtitle', { company: COMPANY_NAME, rocket: ROCKET_NAME, alt: TARGET_ORBIT.altitudeM / 1000 }),
       ),
     );
 
@@ -36,19 +39,47 @@ export class StartScreen {
 
     const keys = el('div', 'keys');
     keys.innerHTML = [
-      '<kbd>Space</kbd> 다음 단계 승인 / 점화 &nbsp; <kbd>W</kbd><kbd>S</kbd> 또는 <kbd>Shift</kbd><kbd>Ctrl</kbd> 스로틀',
-      '<kbd>A</kbd><kbd>D</kbd> / 방향키 피치 &nbsp; <kbd>C</kbd> 카메라 &nbsp; <kbd>T</kbd> 시간 배속 &nbsp; <kbd>M</kbd> 소리 켜기/끄기 &nbsp; <kbd>Esc</kbd> 일시정지',
+      t('start.keys.1'),
+      t('start.keys.2'),
     ].join('<br>');
     card.append(keys);
+
+    const glossary = new GlossaryDialog();
+    const glossaryButton = el('button', 'btn glossary-button', t('glossary.open'));
+    glossaryButton.type = 'button';
+    glossaryButton.addEventListener('click', () => glossary.open());
+    card.append(glossaryButton, glossary.root);
 
     card.append(
       el(
         'p',
         'disclaimer',
-        '실제 재사용 로켓 발사 과정에서 영감을 받은 시뮬레이션 게임입니다. 등장하는 로켓·회사명은 가상이며 특정 기업과 관련이 없습니다.',
+        t('start.disclaimer'),
       ),
     );
     this.root.append(card);
+  }
+
+  /** 언어 선택: 바꾸면 저장 후 페이지를 다시 불러온다 (모든 문구를 새 언어로) */
+  private languagePicker(): HTMLElement {
+    const picker = el('div', 'language-picker');
+    picker.setAttribute('role', 'group');
+    picker.setAttribute('aria-label', t('start.language'));
+    for (const locale of LOCALES) {
+      const button = el('button', 'lang-button', locale.nativeName);
+      button.type = 'button';
+      button.lang = locale.id;
+      const active = locale.id === getLocale();
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+      button.addEventListener('click', () => {
+        if (locale.id === getLocale()) return;
+        setLocale(locale.id);
+        window.location.reload();
+      });
+      picker.append(button);
+    }
+    return picker;
   }
 
   /** 모드 카드에 최고 기록 표시 */
@@ -56,8 +87,8 @@ export class StartScreen {
     for (const [id, label] of this.recordLabels) {
       const best = records.get(id);
       label.textContent = best
-        ? `최고 기록  ${best.grade} · ${best.score}점${best.boosterLanded ? ' · 부스터 착륙' : ''}`
-        : '최고 기록  없음';
+        ? t('start.best', { grade: best.grade, score: best.score, landed: best.boosterLanded ? t('start.bestLanded') : '' })
+        : t('start.noBest');
       label.classList.toggle('empty', best === null);
     }
   }

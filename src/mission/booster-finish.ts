@@ -7,6 +7,7 @@ import { vec2 } from '../physics/vec2';
 import { computeBoosterTelemetry } from './booster-guidance';
 import { evaluateTouchdown, type BoosterOutcome } from './landing';
 import type { MissionContext } from './mission-types';
+import { t } from '../i18n';
 
 function finish(ctx: MissionContext, outcome: BoosterOutcome): void {
   const b = ctx.booster;
@@ -30,7 +31,9 @@ function finish(ctx: MissionContext, outcome: BoosterOutcome): void {
   ctx.bus.emit('booster:step', { step: 'DONE' });
   ctx.bus.emit('booster:touchdown', outcome);
   ctx.bus.emit('mission:message', {
-    text: outcome.landed ? `${outcome.reason} 착륙선 중심에서 ${outcome.distanceM.toFixed(1)} m` : `부스터 손실 — ${outcome.reason}`,
+    text: outcome.landed
+      ? t('msg.boosterLanded', { reason: outcome.reason, distance: outcome.distanceM.toFixed(1) })
+      : t('msg.boosterLost', { reason: outcome.reason }),
     tone: outcome.landed ? 'success' : 'danger',
   });
 }

@@ -4,6 +4,7 @@
 import { SCORING, TARGET_ORBIT } from '../data/mission-config';
 import { checklistScoreRatio } from './checklist';
 import { landingQuality, type BoosterOutcome } from './landing';
+import { t } from '../i18n';
 
 export interface ScoreItem {
   readonly label: string;
@@ -68,38 +69,45 @@ export function computeResult(input: ScoreInput): MissionResult {
 
   const items: ScoreItem[] = [
     {
-      label: '궤도 진입 정확도',
+      label: t('score.orbit.label'),
       points: Math.round(orbitPoints),
       max: SCORING.orbitAccuracyMax,
-      detail: input.success ? `평균 고도 오차 ${(error / 1000).toFixed(1)} km` : '궤도 미진입',
+      detail: input.success ? t('score.orbit.detail', { error: (error / 1000).toFixed(1) }) : t('score.orbit.none'),
     },
     {
-      label: '남은 연료 (2단)',
+      label: t('score.fuel.label'),
       points: Math.round(fuelPoints),
       max: SCORING.fuelMax,
-      detail: `${(input.stage2FuelFraction * 100).toFixed(1)}% 잔여`,
+      detail: t('score.fuel.detail', { percent: (input.stage2FuelFraction * 100).toFixed(1) }),
     },
     {
-      label: 'Max-Q 기체 스트레스',
+      label: t('score.structure.label'),
       points: Math.round(structurePoints),
       max: SCORING.structureMax,
-      detail: `스트레스 ${(clamp01(input.stress) * 100).toFixed(0)}% · 최대 동압 ${(input.maxDynamicPressurePa / 1000).toFixed(1)} kPa`,
+      detail: t('score.structure.detail', {
+        stress: (clamp01(input.stress) * 100).toFixed(0),
+        q: (input.maxDynamicPressurePa / 1000).toFixed(1),
+      }),
     },
     {
-      label: '부스터 착륙',
+      label: t('score.landing.label'),
       points: Math.round(landingPoints),
       max: SCORING.landingMax,
       detail: !booster
-        ? '부스터 귀환 전 미션 종료'
+        ? t('score.landing.none')
         : booster.landed
-          ? `중심에서 ${booster.distanceM.toFixed(1)} m · 하강 ${booster.verticalSpeedMps.toFixed(1)} m/s · 기울기 ${((booster.tiltRad * 180) / Math.PI).toFixed(1)}°`
+          ? t('score.landing.detail', {
+              distance: booster.distanceM.toFixed(1),
+              vs: booster.verticalSpeedMps.toFixed(1),
+              tilt: ((booster.tiltRad * 180) / Math.PI).toFixed(1),
+            })
           : booster.reason,
     },
     {
-      label: '발사 전 체크리스트',
+      label: t('score.checklist.label'),
       points: Math.round(checklistPoints),
       max: SCORING.checklistMax,
-      detail: `이상 ${faultCount}건 중 ${faultCount - missedFaults}건 발견 · 불필요한 홀드 ${falseHolds}회`,
+      detail: t('score.checklist.detail', { faults: faultCount, found: faultCount - missedFaults, holds: falseHolds }),
     },
   ];
 

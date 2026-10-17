@@ -3,6 +3,7 @@ import { PHASE_INFO } from '../../data/mission-timeline';
 import { STAGE1_LANDING_RESERVE_FRACTION } from '../../data/rocket-specs';
 import type { Phase } from '../mission-types';
 import { say } from './phase-helpers';
+import { t } from '../../i18n';
 
 /** 동압이 최댓값의 이 비율 아래로 내려가면 "Max-Q 통과"로 본다 */
 const MAX_Q_PASSED_RATIO = 0.6;
@@ -30,7 +31,7 @@ export function createMaxQPhase(): Phase {
       if (!enteredMaxQ && stats.loadRatio >= STRUCTURE.warpLockRatio) {
         enteredMaxQ = true;
         ctx.bus.emit('maxq:entered', {});
-        say(ctx, '최대 동압(Max-Q) 구간 진입. 기체 하중에 주의하세요.', 'warn');
+        say(ctx, t('msg.maxQEntered'), 'warn');
       }
       if (
         !passedMaxQ &&
@@ -38,7 +39,7 @@ export function createMaxQPhase(): Phase {
         telemetry.dynamicPressurePa < stats.maxDynamicPressurePa * MAX_Q_PASSED_RATIO
       ) {
         passedMaxQ = true;
-        say(ctx, `Max-Q 통과 (최대 ${(stats.maxDynamicPressurePa / 1000).toFixed(1)} kPa). 스로틀 업.`, 'success');
+        say(ctx, t('msg.maxQPassed', { kpa: (stats.maxDynamicPressurePa / 1000).toFixed(1) }), 'success');
       }
 
       if (
@@ -47,7 +48,7 @@ export function createMaxQPhase(): Phase {
         ctx.phaseTimeS - lastWarningAt > WARNING_COOLDOWN_S
       ) {
         lastWarningAt = ctx.phaseTimeS;
-        say(ctx, '경고: 구조 하중 높음 — 스로틀을 줄이세요 (S / Ctrl)', 'danger');
+        say(ctx, t('msg.loadWarning'), 'danger');
       }
 
       const reserve = ctx.cfg.stage1.propellantMassKg * STAGE1_LANDING_RESERVE_FRACTION;

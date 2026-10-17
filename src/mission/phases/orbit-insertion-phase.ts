@@ -3,6 +3,7 @@ import { PHASE_INFO } from '../../data/mission-timeline';
 import { shouldAutoSeco } from '../guidance';
 import type { Phase } from '../mission-types';
 import { cutUpperStage, updateFairing } from '../upper-stage-events';
+import { t } from '../../i18n';
 
 /** 근지점이 목표의 이 거리 이내로 다가오면 배속 해제 [m] */
 const WARP_LOCK_PERIAPSIS_MARGIN_M = 40_000;
@@ -22,11 +23,11 @@ export function createOrbitInsertionPhase(): Phase {
       updateFairing(ctx);
 
       if (secoAtS === null) {
-        if (!ctx.difficulty.autoSeco) ctx.prompt = 'SPACE  2단 엔진 정지 (SECO)';
+        if (!ctx.difficulty.autoSeco) ctx.prompt = t('prompt.seco');
         if (vehicle.stage2PropellantKg <= 0) {
-          cutUpperStage(ctx, '2단 추진제 고갈 — 엔진 정지.');
+          cutUpperStage(ctx, t('msg.stage2Depleted'));
         } else if (ctx.difficulty.autoSeco ? shouldAutoSeco(telemetry) : input.confirm) {
-          cutUpperStage(ctx, 'SECO — 2단 엔진 정지.');
+          cutUpperStage(ctx, t('msg.seco'));
         }
         if (!ctx.vehicle.enginesOn) {
           secoAtS = ctx.phaseTimeS;
@@ -39,13 +40,13 @@ export function createOrbitInsertionPhase(): Phase {
 
       const pe = telemetry.orbit.periapsisAltitudeM;
       if (pe >= TARGET_ORBIT.minPeriapsisM && Number.isFinite(telemetry.orbit.apoapsisAltitudeM)) {
-        ctx.outcome = { success: true, reason: '궤도 진입 성공!' };
+        ctx.outcome = { success: true, reason: t('outcome.orbitSuccess') };
       } else if (!Number.isFinite(telemetry.orbit.apoapsisAltitudeM)) {
-        ctx.outcome = { success: false, reason: '탈출 속도를 넘어 지구 궤도를 벗어났습니다.' };
+        ctx.outcome = { success: false, reason: t('outcome.escape') };
       } else {
         ctx.outcome = {
           success: false,
-          reason: `궤도 진입 실패 — 근지점 ${(pe / 1000).toFixed(0)} km (최소 ${TARGET_ORBIT.minPeriapsisM / 1000} km 필요)`,
+          reason: t('outcome.orbitFailed', { pe: (pe / 1000).toFixed(0), min: TARGET_ORBIT.minPeriapsisM / 1000 }),
         };
       }
       return 'RESULT';

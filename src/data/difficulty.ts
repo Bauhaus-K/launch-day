@@ -1,6 +1,7 @@
 /**
  * 난이도 모드 정의.
  */
+import { t } from '../i18n';
 export type DifficultyId = 'spectator' | 'normal' | 'real';
 
 export interface DifficultyConfig {
@@ -20,8 +21,8 @@ export interface DifficultyConfig {
 export const DIFFICULTIES: Record<DifficultyId, DifficultyConfig> = {
   spectator: {
     id: 'spectator',
-    label: '관람 모드',
-    description: '모든 비행을 자동으로 진행합니다. 해설을 보며 발사 과정을 감상하세요.',
+    label: t('difficulty.spectator.label'),
+    description: t('difficulty.spectator.description'),
     autoPitch: true,
     autoThrottle: true,
     autoConfirm: true,
@@ -29,8 +30,8 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyConfig> = {
   },
   normal: {
     id: 'normal',
-    label: '일반 모드',
-    description: '자세는 자동, 스로틀과 주요 단계 승인은 직접. Max-Q 구간에서 스로틀을 줄이세요.',
+    label: t('difficulty.normal.label'),
+    description: t('difficulty.normal.description'),
     autoPitch: true,
     autoThrottle: false,
     autoConfirm: false,
@@ -38,8 +39,8 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyConfig> = {
   },
   real: {
     id: 'real',
-    label: '리얼 모드',
-    description: '스로틀·자세·엔진 정지까지 전부 수동. HUD의 권장 피치를 참고하세요.',
+    label: t('difficulty.real.label'),
+    description: t('difficulty.real.description'),
     autoPitch: false,
     autoThrottle: false,
     autoConfirm: false,

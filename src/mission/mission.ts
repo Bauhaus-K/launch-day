@@ -25,6 +25,7 @@ import { createRng } from '../utils/random';
 import { resultPhase } from './phases/result-phase';
 import { sesPhase } from './phases/ses-phase';
 import { stageSeparationPhase } from './phases/stage-separation-phase';
+import { t } from '../i18n';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -203,9 +204,9 @@ export class Mission {
   /** 실패 사유 또는 null */
   private checkFailure(): string | null {
     const ctx = this.ctx;
-    if (ctx.stats.stress >= 1) return 'Max-Q 구간의 과도한 하중으로 기체가 파손되었습니다.';
+    if (ctx.stats.stress >= 1) return t('outcome.structural');
     if (!ctx.vehicle.clamped && ctx.missionTimeS > PHASE_RULES.crashGraceS && ctx.telemetry.altitudeM < 0) {
-      return '기체가 지표면과 충돌했습니다.';
+      return t('outcome.crash');
     }
     return null;
   }

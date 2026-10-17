@@ -6,6 +6,7 @@ import type { FlightLog } from '../mission/flight-recorder';
 import { formatMissionTime } from '../utils/format';
 import { el } from './dom';
 import { lineChart, type ChartPoint } from './line-chart';
+import { t } from '../i18n';
 
 const MPS_TO_KMH = 3.6;
 /** 동압 그래프 종료 판단: 이륙 후 이 시간이 지난 뒤 이 동압 미만이면 대기권 이탈 */
@@ -18,17 +19,17 @@ const minutes = (t: number) => `${Math.floor(t / 60)}:${String(Math.round(t % 60
 
 export function flightReport(log: FlightLog): HTMLElement {
   const root = el('section', 'flight-report viz-root');
-  root.append(el('h3', 'report-title', '비행 리포트'));
+  root.append(el('h3', 'report-title', t('chart.reportTitle')));
   const grid = el('div', 'chart-layout');
   const events = log.events.map((e) => ({ x: e.t, label: e.label }));
   const time = (p: ChartPoint) => formatMissionTime(p.x);
 
   grid.append(
     lineChart({
-      title: '2단 고도 (km)',
+      title: t('chart.altitude'),
       points: log.vehicle.map((s) => ({ x: s.t, y: s.altitudeM / 1000 })),
       colorVar: '--series-1',
-      xLabel: '시간 (분:초)',
+      xLabel: t('chart.timeAxis'),
       formatXTick: minutes,
       formatYTick: (y) => y.toFixed(0),
       readout: (p) => [`${p.y.toFixed(1)} km`, time(p)],
@@ -36,10 +37,10 @@ export function flightReport(log: FlightLog): HTMLElement {
       yFromZero: true,
     }),
     lineChart({
-      title: '2단 속도 (km/h)',
+      title: t('chart.speed'),
       points: log.vehicle.map((s) => ({ x: s.t, y: s.speedMps * MPS_TO_KMH })),
       colorVar: '--series-1',
-      xLabel: '시간 (분:초)',
+      xLabel: t('chart.timeAxis'),
       formatXTick: minutes,
       formatYTick: (y) => (y >= 1000 ? `${(y / 1000).toFixed(0)}k` : y.toFixed(0)),
       readout: (p) => [`${p.y.toFixed(0)} km/h`, time(p)],
@@ -47,27 +48,27 @@ export function flightReport(log: FlightLog): HTMLElement {
       yFromZero: true,
     }),
     lineChart({
-      title: '동압 q (kPa) — 상승 구간',
+      title: t('chart.q'),
       points: ascentSamples(log).map((s) => ({ x: s.t, y: s.dynamicPressurePa / 1000 })),
       colorVar: '--series-1',
-      xLabel: '시간 (분:초)',
+      xLabel: t('chart.timeAxis'),
       formatXTick: minutes,
       formatYTick: (y) => y.toFixed(0),
       readout: (p) => [`${p.y.toFixed(1)} kPa`, time(p)],
-      refLine: { y: STRUCTURE.qLimitPa / 1000, label: '허용 동압' },
+      refLine: { y: STRUCTURE.qLimitPa / 1000, label: t('chart.qLimit') },
       eventLines: events.filter((e) => e.label === 'Max-Q' || e.label === 'MECO'),
       yFromZero: true,
     }),
     lineChart({
-      title: '부스터 궤적 (다운레인지 km × 고도 km)',
+      title: t('chart.booster'),
       points: log.booster.map((b) => ({ x: b.downrangeM / 1000, y: b.altitudeM / 1000 })),
       colorVar: '--series-2',
-      xLabel: '발사장에서 거리 (km)',
+      xLabel: t('chart.distanceAxis'),
       formatXTick: (x) => x.toFixed(0),
       formatYTick: (y) => y.toFixed(0),
-      readout: (p) => [`고도 ${p.y.toFixed(1)} km`, `거리 ${p.x.toFixed(1)} km`],
+      readout: (p) => [t('chart.readoutAlt', { alt: p.y.toFixed(1) }), t('chart.readoutDist', { dist: p.x.toFixed(1) })],
       marker:
-        log.shipDownrangeM !== null ? { x: log.shipDownrangeM / 1000, y: 0, label: '착륙선' } : undefined,
+        log.shipDownrangeM !== null ? { x: log.shipDownrangeM / 1000, y: 0, label: t('chart.ship') } : undefined,
       yFromZero: true,
     }),
   );
@@ -85,10 +86,11 @@ function ascentSamples(log: FlightLog) {
 /** 그래프 값을 표로도 볼 수 있게 (색에 기대지 않는 접근 경로) */
 function dataTable(log: FlightLog): HTMLElement {
   const details = el('details', 'report-table');
-  details.append(el('summary', undefined, '데이터 표 보기'));
+  details.append(el('summary', undefined, t('chart.tableToggle')));
   const table = el('table', 'result-table');
   const head = el('tr');
-  for (const h of ['시간', '사건', '고도 (km)', '속도 (km/h)', '동압 (kPa)']) head.append(el('th', undefined, h));
+  const headers = [t('chart.col.time'), t('chart.col.event'), t('chart.col.alt'), t('chart.col.speed'), t('chart.col.q')];
+  for (const h of headers) head.append(el('th', undefined, h));
   table.append(head);
 
   const rows = log.vehicle.filter((s, i) => i === 0 || Math.floor(s.t / TABLE_INTERVAL_S) !== Math.floor((log.vehicle[i - 1]?.t ?? 0) / TABLE_INTERVAL_S));

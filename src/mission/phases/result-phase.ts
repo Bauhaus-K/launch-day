@@ -1,6 +1,7 @@
 import { PHASE_INFO } from '../../data/mission-timeline';
 import { computeResult } from '../scoring';
 import type { Phase } from '../mission-types';
+import { t } from '../../i18n';
 
 export const resultPhase: Phase = {
   id: 'RESULT',
@@ -8,7 +9,7 @@ export const resultPhase: Phase = {
   enter(ctx) {
     ctx.flying = false;
     ctx.prompt = null;
-    const outcome = ctx.outcome ?? { success: false, reason: '미션 중단' };
+    const outcome = ctx.outcome ?? { success: false, reason: t('outcome.aborted') };
     ctx.result = computeResult({
       success: outcome.success,
       reason: outcome.reason,

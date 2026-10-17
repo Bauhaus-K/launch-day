@@ -5,15 +5,11 @@
 import * as THREE from 'three';
 import { EARTH_RADIUS_M } from '../data/physics-constants';
 import { CAMERA, RENDER } from '../data/scene-config';
+import { t } from '../i18n';
 
 export type CameraMode = 'pad' | 'chase' | 'onboard' | 'booster';
 
-export const CAMERA_LABELS: Record<CameraMode, string> = {
-  pad: '발사대',
-  chase: '추적',
-  onboard: '온보드',
-  booster: '부스터',
-};
+export const cameraLabel = (mode: CameraMode): string => t(`camera.${mode}`);
 
 const ORDER: readonly CameraMode[] = ['pad', 'chase', 'onboard', 'booster'];
 

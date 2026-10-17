@@ -5,14 +5,9 @@ import type { ChecklistDecision, CheckStatus } from '../mission/checklist';
 import { awaitingDecision, checklistComplete, formatReading } from '../mission/checklist';
 import type { MissionContext } from '../mission/mission-types';
 import { el, setText } from './dom';
+import { t } from '../i18n';
 
-const STATUS_LABELS: Record<CheckStatus, string> = {
-  pending: '대기',
-  polling: '점검 중',
-  hold: '홀드',
-  go: 'GO',
-  'go-missed': 'GO (한계 초과)',
-};
+const statusLabel = (status: CheckStatus): string => t(`cl.status.${status}`);
 
 interface Row {
   readonly root: HTMLElement;
@@ -24,15 +19,20 @@ export class ChecklistPanel {
   readonly root = el('div', 'panel hud-checklist');
   private readonly list = el('div', 'check-list');
   private readonly footer = el('div', 'check-footer');
-  private readonly goButton = el('button', 'btn check-go', 'GO  (Space)');
-  private readonly noGoButton = el('button', 'btn check-nogo', 'NO-GO 홀드  (H)');
+  private readonly goButton = el('button', 'btn check-go', t('cl.goButton'));
+  private readonly noGoButton = el('button', 'btn check-nogo', t('cl.noGoButton'));
   private readonly note = el('div', 'check-note');
   private rows: Row[] = [];
 
   constructor(onDecision: (decision: ChecklistDecision) => void) {
     const head = el('div', 'check-head');
-    head.append(el('span', undefined, '점검 항목'), el('span', undefined, '측정값'), el('span', undefined, '허용 기준'), el('span', undefined, '상태'));
-    this.root.append(el('h3', undefined, '발사 전 점검 — Go / No-Go'), head, this.list, this.footer);
+    head.append(
+      el('span', undefined, t('cl.col.item')),
+      el('span', undefined, t('cl.col.reading')),
+      el('span', undefined, t('cl.col.limit')),
+      el('span', undefined, t('cl.col.status')),
+    );
+    this.root.append(el('h3', undefined, t('cl.title')), head, this.list, this.footer);
     this.goButton.type = 'button';
     this.noGoButton.type = 'button';
     // 클릭 후 포커스가 남아 Space가 버튼을 다시 누르지 않도록 즉시 해제
@@ -71,7 +71,10 @@ export class ChecklistPanel {
       if (!row) return;
       const revealed = item.status !== 'pending';
       setText(row.reading, revealed ? formatReading(item) : '—');
-      const label = item.status === 'hold' ? `홀드 ${Math.max(0, s.holdRemainingS).toFixed(1)}s` : STATUS_LABELS[item.status];
+      const label =
+        item.status === 'hold'
+          ? t('cl.holdTimer', { seconds: Math.max(0, s.holdRemainingS).toFixed(1) })
+          : statusLabel(item.status);
       setText(row.status, label);
       row.root.className = `check-item ${item.status}`;
     });
@@ -89,13 +92,13 @@ export class ChecklistPanel {
   private noteText(ctx: MissionContext, manual: boolean): string {
     const s = ctx.checklist;
     if (checklistComplete(s)) {
-      if (!manual) return '모든 항목 GO — 곧 카운트다운을 시작합니다';
+      if (!manual) return t('cl.note.autoDone');
       return s.missedFaults === 0
-        ? '모든 항목 GO — Space로 카운트다운 시작'
-        : `놓친 이상 ${s.missedFaults}건 — Space로 카운트다운 시작`;
+        ? t('cl.note.done')
+        : t('cl.note.doneMissed', { count: s.missedFaults });
     }
-    if (!manual) return '비행 컴퓨터가 항목을 판단합니다';
-    if (s.holdKind !== null) return '홀드 중 — 조치 후 다시 점검합니다';
-    return '측정값이 허용 기준 안이면 GO, 벗어나면 NO-GO(홀드)';
+    if (!manual) return t('cl.note.auto');
+    if (s.holdKind !== null) return t('cl.note.hold');
+    return t('cl.note.manual');
   }
 }

@@ -1,7 +1,8 @@
 /**
- * 관제 음성: 브라우저 내장 음성 합성(Web Speech API). 한국어 음성이 없으면 조용히 생략한다.
+ * 관제 음성: 브라우저 내장 음성 합성(Web Speech API). 게임 언어의 음성이 없으면 조용히 생략한다.
  */
 import { VOICE } from '../data/audio-config';
+import { getLocale, LOCALES } from '../i18n';
 
 export class VoiceAnnouncer {
   private voice: SpeechSynthesisVoice | null = null;
@@ -18,7 +19,9 @@ export class VoiceAnnouncer {
 
   private pickVoice(): void {
     const voices = this.synth?.getVoices() ?? [];
-    this.voice = voices.find((v) => v.lang.toLowerCase().startsWith(VOICE.lang)) ?? null;
+    // 게임 언어와 같은 언어의 음성만 쓴다 (다른 언어 음성으로 읽으면 알아듣기 어렵다)
+    const lang = LOCALES.find((l) => l.id === getLocale())?.speechLang ?? getLocale();
+    this.voice = voices.find((v) => v.lang.toLowerCase().startsWith(lang)) ?? null;
   }
 
   get available(): boolean {

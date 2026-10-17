@@ -2,6 +2,7 @@
  * 사운드 설정. 모든 소리는 Web Audio API로 실시간 합성하며 외부 음원 파일을 쓰지 않는다.
  * 관제 음성은 브라우저 내장 음성 합성(Web Speech API)으로 읽는다 (실제 미션 음성 미사용).
  */
+import { t } from '../i18n';
 
 export const AUDIO = {
   masterGain: 0.8,
@@ -116,7 +117,6 @@ export type SoundName = keyof typeof SOUNDS;
 
 /** 관제 음성 */
 export const VOICE = {
-  lang: 'ko',
   rate: 1.05,
   volume: 1,
   /** 카운트다운에서 숫자를 읽기 시작하는 T- [s] */
@@ -125,17 +125,17 @@ export const VOICE = {
 
 /** 관제 음성 대사 (가상 관제 센터) */
 export const VOICE_LINES = {
-  ignition: '엔진 점화',
-  liftoff: '이륙!',
-  maxQ: '최대 동압 구간',
-  meco: '메코',
-  separation: '단 분리 확인',
-  ses: '2단 점화',
-  boosterReturn: '부스트백 시작',
-  landingBurn: '착륙 연소',
-  landed: '부스터 착륙 성공',
-  boosterLost: '부스터 손실',
-  seco: '세코',
-  orbit: '궤도 진입 성공',
-  missionFailed: '미션 실패',
+  ignition: t('voice.ignition'),
+  liftoff: t('voice.liftoff'),
+  maxQ: t('voice.maxQ'),
+  meco: t('voice.meco'),
+  separation: t('voice.separation'),
+  ses: t('voice.ses'),
+  boosterReturn: t('voice.boosterReturn'),
+  landingBurn: t('voice.landingBurn'),
+  landed: t('voice.landed'),
+  boosterLost: t('voice.boosterLost'),
+  seco: t('voice.seco'),
+  orbit: t('voice.orbit'),
+  missionFailed: t('voice.missionFailed'),
 } as const;

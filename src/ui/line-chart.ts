@@ -3,6 +3,7 @@
  * 색은 CSS 변수(역할)로만 지정하고, 글자는 텍스트 색을 쓴다.
  */
 import { el } from './dom';
+import { t } from '../i18n';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const W = 340;
@@ -58,7 +59,7 @@ export function lineChart(spec: LineChartSpec): HTMLElement {
   figure.append(el('figcaption', 'chart-title', spec.title));
   const pts = spec.points;
   if (pts.length < 2) {
-    figure.append(el('p', 'chart-empty', '기록된 데이터가 없습니다'));
+    figure.append(el('p', 'chart-empty', t('chart.empty')));
     return figure;
   }
 
@@ -79,7 +80,7 @@ export function lineChart(spec: LineChartSpec): HTMLElement {
   const sy = (y: number) => H - M.bottom - ((y - y0) / (y1 - y0 || 1)) * (H - M.top - M.bottom);
 
   const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img', tabindex: 0 });
-  root.setAttribute('aria-label', `${spec.title} 그래프. 화살표 키로 값을 읽을 수 있습니다.`);
+  root.setAttribute('aria-label', t('chart.aria', { title: spec.title }));
 
   // 격자와 축 눈금 (흐리게)
   for (const y of yTicks) {

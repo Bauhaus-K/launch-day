@@ -2,17 +2,14 @@
  * 부스터 귀환 구간 텔레메트리 패널. 미션 상태를 읽어 표시만 한다.
  */
 import { BOOSTER_HEATING_LIMIT, TOUCHDOWN_LIMITS } from '../data/booster-config';
-import { BOOSTER_STEP_LABELS } from '../mission/booster-guidance';
+import { boosterStepLabel } from '../mission/booster-guidance';
 import type { AttitudeHold } from '../mission/booster-program';
 import type { MissionContext } from '../mission/mission-types';
 import { formatAltitude, formatPercent } from '../utils/format';
 import { el, setText } from './dom';
+import { t } from '../i18n';
 
-const HOLD_LABELS: Record<AttitudeHold, string> = {
-  none: '수동 (B·R로 고정)',
-  boostback: '부스트백 방향 (B)',
-  retrograde: '역추진·착륙 자세 (R)',
-};
+const holdLabel = (hold: AttitudeHold): string => t(`hold.${hold}`);
 
 /** 이 거리 미만은 m로, 이상은 km로 표시 [m] */
 const KM_DISPLAY_THRESHOLD_M = 2_000;
@@ -32,33 +29,33 @@ export class BoosterPanel {
   private readonly heatBar = el('div', 'bar');
 
   constructor() {
-    this.root.append(el('div', 'hud-mission-name', '1단 부스터 귀환'), this.step);
-    this.row(this.root, 'alt', '고도');
-    this.row(this.root, 'vs', '수직 속도');
-    this.row(this.root, 'hs', '수평 속도');
+    this.root.append(el('div', 'hud-mission-name', t('bp.title')), this.step);
+    this.row(this.root, 'alt', t('tel.altitude'));
+    this.row(this.root, 'vs', t('tel.verticalSpeed'));
+    this.row(this.root, 'hs', t('tel.horizontalSpeed'));
 
     const engine = el('div', 'tel-section');
-    this.row(engine, 'engine', '엔진');
-    this.row(engine, 'hold', '자세 유지');
-    this.row(engine, 'fuel', '추진제');
-    this.row(engine, 'ignite', '착륙 연소 권장 점화');
+    this.row(engine, 'engine', t('bp.engine'));
+    this.row(engine, 'hold', t('bp.hold'));
+    this.row(engine, 'fuel', t('bp.fuel'));
+    this.row(engine, 'ignite', t('bp.ignite'));
     this.root.append(engine);
 
     const target = el('div', 'tel-section');
-    this.row(target, 'impact', '예상 낙하점 (착륙선 기준)');
-    this.row(target, 'offset', '현재 위치 (착륙선 기준)');
-    this.row(target, 'legs', '착륙 다리');
-    this.row(target, 'limits', '착지 한계');
+    this.row(target, 'impact', t('bp.impact'));
+    this.row(target, 'offset', t('bp.offset'));
+    this.row(target, 'legs', t('bp.legs'));
+    this.row(target, 'limits', t('bp.limits'));
     this.root.append(target);
 
     const heat = el('div', 'tel-section');
-    this.row(heat, 'heat', '재진입 가열 손상');
+    this.row(heat, 'heat', t('bp.heat'));
     this.heatBar.append(this.heatFill);
     heat.append(this.heatBar);
     this.root.append(heat);
 
     const upper = el('div', 'tel-section');
-    this.row(upper, 'upper', '2단 (자동 비행)');
+    this.row(upper, 'upper', t('bp.upper'));
     this.root.append(upper);
   }
 
@@ -78,32 +75,32 @@ export class BoosterPanel {
     const p = ctx.boosterProgram;
     const b = ctx.booster;
     if (!p || !b) return;
-    const t = p.telemetry;
+    const tel = p.telemetry;
     const set = (key: string, text: string) => {
       const node = this.values.get(key);
       if (node) setText(node, text);
     };
 
-    setText(this.step, b.status === 'flying' ? BOOSTER_STEP_LABELS[p.step] : (p.outcome?.reason ?? ''));
-    set('alt', formatAltitude(t.altitudeM));
-    set('vs', `${t.verticalSpeedMps.toFixed(1)} m/s`);
-    set('hs', `${t.horizontalSpeedMps.toFixed(1)} m/s`);
-    set('engine', b.engines > 0 ? `${b.engines}기 · ${formatPercent(b.throttle)}` : '정지');
+    setText(this.step, b.status === 'flying' ? boosterStepLabel(p.step) : (p.outcome?.reason ?? ''));
+    set('alt', formatAltitude(tel.altitudeM));
+    set('vs', `${tel.verticalSpeedMps.toFixed(1)} m/s`);
+    set('hs', `${tel.horizontalSpeedMps.toFixed(1)} m/s`);
+    set('engine', b.engines > 0 ? t('bp.engineValue', { count: b.engines, throttle: formatPercent(b.throttle) }) : t('bp.engineOff'));
     set('fuel', `${(b.propellantKg / 1000).toFixed(1)} t`);
-    set('hold', ctx.difficulty.autoPitch ? '비행 컴퓨터' : HOLD_LABELS[p.attitudeHold]);
+    set('hold', ctx.difficulty.autoPitch ? t('bp.flightComputer') : holdLabel(p.attitudeHold));
     set('ignite', p.ignitionAltitudeM > 0 ? formatAltitude(p.ignitionAltitudeM) : '-');
-    set('impact', t.impactErrorM === null ? '-' : formatOffset(t.impactErrorM));
-    set('offset', formatOffset(t.shipOffsetM));
-    set('legs', b.legsDeployed ? '전개' : '접힘');
+    set('impact', tel.impactErrorM === null ? '-' : formatOffset(tel.impactErrorM));
+    set('offset', formatOffset(tel.shipOffsetM));
+    set('legs', b.legsDeployed ? t('bp.legsDeployed') : t('bp.legsStowed'));
     set(
       'limits',
       `≤${TOUCHDOWN_LIMITS.maxVerticalSpeedMps} m/s · ≤${((TOUCHDOWN_LIMITS.maxTiltRad * 180) / Math.PI).toFixed(0)}°`,
     );
-    set('heat', `${formatPercent(Math.min(1, p.stress))} (가열 ${formatPercent(t.heating / BOOSTER_HEATING_LIMIT)})`);
+    set('heat', t('bp.heatValue', { stress: formatPercent(Math.min(1, p.stress)), heating: formatPercent(tel.heating / BOOSTER_HEATING_LIMIT) }));
     this.heatFill.style.width = `${Math.min(1, p.stress) * 100}%`;
-    this.heatBar.className = t.heating > BOOSTER_HEATING_LIMIT ? 'bar danger' : 'bar';
+    this.heatBar.className = tel.heating > BOOSTER_HEATING_LIMIT ? 'bar danger' : 'bar';
 
     const v = ctx.telemetry;
-    set('upper', `${(v.altitudeM / 1000).toFixed(0)} km · ${ctx.vehicle.enginesOn ? '연소 중' : 'SECO'}`);
+    set('upper', t('bp.upperValue', { alt: (v.altitudeM / 1000).toFixed(0), state: ctx.vehicle.enginesOn ? t('bp.burning') : 'SECO' }));
   }
 }

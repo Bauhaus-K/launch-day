@@ -3,6 +3,7 @@
  */
 import { LANDING_DECK_HALF_LENGTH_M, TOUCHDOWN_LIMITS } from '../data/booster-config';
 import type { BoosterTelemetry } from './booster-guidance';
+import { t } from '../i18n';
 
 export interface BoosterOutcome {
   readonly landed: boolean;
@@ -22,15 +23,15 @@ export function evaluateTouchdown(tel: BoosterTelemetry, legsDeployed: boolean):
 
   const fail = (reason: string): BoosterOutcome => ({ ...base, landed: false, reason });
   if (distanceM > LANDING_DECK_HALF_LENGTH_M) {
-    return fail(`착륙선에서 ${(distanceM / 1000).toFixed(distanceM < 10_000 ? 2 : 0)} km 떨어진 바다에 추락`);
+    return fail(t('landing.splash', { distance: (distanceM / 1000).toFixed(distanceM < 10_000 ? 2 : 0) }));
   }
-  if (!legsDeployed) return fail('착륙 다리가 펴지지 않은 채 갑판에 충돌');
-  if (vs > TOUCHDOWN_LIMITS.maxVerticalSpeedMps) return fail(`하강 속도 ${vs.toFixed(1)} m/s — 너무 빠르게 충돌`);
-  if (hs > TOUCHDOWN_LIMITS.maxHorizontalSpeedMps) return fail(`수평 속도 ${hs.toFixed(1)} m/s — 미끄러져 전복`);
+  if (!legsDeployed) return fail(t('landing.noLegs'));
+  if (vs > TOUCHDOWN_LIMITS.maxVerticalSpeedMps) return fail(t('landing.tooFast', { speed: vs.toFixed(1) }));
+  if (hs > TOUCHDOWN_LIMITS.maxHorizontalSpeedMps) return fail(t('landing.slide', { speed: hs.toFixed(1) }));
   if (tel.tiltRad > TOUCHDOWN_LIMITS.maxTiltRad) {
-    return fail(`기울기 ${((tel.tiltRad * 180) / Math.PI).toFixed(1)}° — 착지 후 전복`);
+    return fail(t('landing.tipped', { angle: ((tel.tiltRad * 180) / Math.PI).toFixed(1) }));
   }
-  return { ...base, landed: true, reason: '부스터 착륙 성공!' };
+  return { ...base, landed: true, reason: t('landing.success') };
 }
 
 /**

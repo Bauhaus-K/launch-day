@@ -12,11 +12,13 @@ import { FIXED_TIMESTEP_S } from './data/mission-config';
 import { HELIOS9_STACK } from './data/rocket-specs';
 import { Mission } from './mission/mission';
 import type { PilotInput } from './mission/mission-types';
-import { CAMERA_LABELS } from './scene/camera-rig';
+import { cameraLabel } from './scene/camera-rig';
+import { getLocale, t } from './i18n';
 import { SceneManager } from './scene/scene-manager';
 import { Hud } from './ui/hud';
 import { ResultScreen } from './ui/result-screen';
 import { StartScreen } from './ui/start-screen';
+import { isTouchDevice, TouchControls } from './ui/touch-controls';
 
 /** 미션 종료 후 결과 화면을 띄우기까지 지연 [ms] */
 const RESULT_DELAY_MS = 1_500;
@@ -32,6 +34,8 @@ class Game {
   });
   private readonly audio = new AudioManager();
   private readonly records = new BestRecords(browserStorage());
+  private readonly touch = new TouchControls(this.input);
+  private readonly touchDevice = isTouchDevice();
   private readonly startScreen: StartScreen;
   private readonly resultScreen: ResultScreen;
   private mission: Mission;
@@ -49,7 +53,8 @@ class Game {
       retry: () => this.startMission(this.mission.ctx.difficulty),
       menu: () => this.showMenu(),
     });
-    uiRoot.append(this.hud.root, this.startScreen.root, this.resultScreen.root);
+    uiRoot.append(this.hud.root, this.touch.root, this.startScreen.root, this.resultScreen.root);
+    document.body.classList.toggle('touch', this.touchDevice);
     this.startScreen.showRecords(this.records);
 
     // 메뉴 뒤 배경용: 발사대 위 대기 중인 기체
@@ -81,6 +86,7 @@ class Game {
       window.setTimeout(() => {
         this.running = false;
         this.hud.setVisible(false);
+        this.touch.setVisible(false);
         this.resultScreen.show(result, record, this.mission.ctx.flightLog);
       }, RESULT_DELAY_MS);
     });
@@ -93,6 +99,7 @@ class Game {
     this.startScreen.setVisible(false);
     this.resultScreen.setVisible(false);
     this.hud.setVisible(true);
+    this.touch.setVisible(this.touchDevice);
     this.mission.start();
   }
 
@@ -100,6 +107,7 @@ class Game {
     this.running = false;
     this.resultScreen.setVisible(false);
     this.hud.setVisible(false);
+    this.touch.setVisible(false);
     this.mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator);
     this.scene.bind(this.mission);
     this.audio.bind(this.mission);
@@ -120,6 +128,7 @@ class Game {
     this.stepsThisFrame = 0;
     const pressed = this.input.consumePressed();
     if (pressed.has('mute')) this.audio.toggleMute();
+    if (pressed.has('commentary')) this.hud.commentary.toggle();
     if (!this.running) return;
     if (pressed.has('pause')) {
       this.paused = !this.paused;
@@ -160,7 +169,7 @@ class Game {
       this.hud.update(this.mission, {
         warp: this.warp.effective(maxWarp),
         warpLocked: this.warp.selected > maxWarp,
-        camera: CAMERA_LABELS[this.scene.cameraMode],
+        camera: cameraLabel(this.scene.cameraMode),
         paused: this.paused,
         muted: this.audio.isMuted,
       });
@@ -171,6 +180,9 @@ class Game {
 const canvas = document.getElementById('scene-canvas');
 const uiRoot = document.getElementById('ui-root');
 if (!(canvas instanceof HTMLCanvasElement) || !uiRoot) throw new Error('필수 DOM 요소가 없습니다');
+// 문서 언어·제목을 현재 언어로
+document.documentElement.lang = getLocale();
+document.title = t('page.title');
 const game = new Game(canvas, uiRoot);
 
 // 개발 모드 전용: 콘솔에서 미션 상태 확인·빨리 감기 (예: __launchDay.skip(120))

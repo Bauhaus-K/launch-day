@@ -2,6 +2,7 @@ import { PHASE_INFO } from '../../data/mission-timeline';
 import type { Phase } from '../mission-types';
 import { updateFairing } from '../upper-stage-events';
 import { say } from './phase-helpers';
+import { t } from '../../i18n';
 
 /** 2단 정상 연소를 확인한 뒤 부스터 조종으로 넘어가기까지 [s] */
 const SES_STABLE_S = 3;
@@ -13,7 +14,7 @@ export const sesPhase: Phase = {
     ctx.vehicle = { ...ctx.vehicle, enginesOn: true };
     ctx.sesTimeS = ctx.missionTimeS;
     ctx.bus.emit('engine:ignition', { stage: 2 });
-    say(ctx, 'SES — 2단 엔진 점화. 정상 연소 중.', 'success');
+    say(ctx, t('msg.ses'), 'success');
   },
   update(ctx) {
     updateFairing(ctx);

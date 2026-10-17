@@ -9,6 +9,7 @@ import { canToggleEngine, updateBoosterProgram } from '../booster-program';
 import type { MissionContext, Phase } from '../mission-types';
 import { autoUpperStageSeco, updateFairing } from '../upper-stage-events';
 import { say } from './phase-helpers';
+import { t, type MessageKey } from '../../i18n';
 
 /** 착지·추락 후 장면을 보여 주는 시간 [s] */
 const AFTERMATH_S = 4;
@@ -17,36 +18,35 @@ const IGNITION_HINT_RATIO = 1.3;
 /** 이 고도 아래에서는 배속 해제 [m] */
 const WARP_LOCK_ALTITUDE_M = 12_000;
 
-const STEP_MESSAGES: Partial<Record<BoosterStep, string>> = {
-  COAST: '부스트백 종료. 그리드 핀 전개 — 관성 비행.',
-  ENTRY_BURN: '재진입 연소 시작 — 엔진 3기 점화.',
-  DESCENT: '대기권 하강 중. 그리드 핀으로 착륙선을 조준합니다.',
-  LANDING_BURN: '착륙 연소 시작 — 중앙 엔진 1기.',
+const STEP_MESSAGES: Partial<Record<BoosterStep, MessageKey>> = {
+  COAST: 'msg.boosterStep.COAST',
+  ENTRY_BURN: 'msg.boosterStep.ENTRY_BURN',
+  DESCENT: 'msg.boosterStep.DESCENT',
+  LANDING_BURN: 'msg.boosterStep.LANDING_BURN',
 };
 
 /** 리얼 모드: 비행 컴퓨터 권장과 현재 점화 상태가 다를 때의 안내 */
-const REAL_MODE_ADVICE: Partial<Record<BoosterStep, { ignite: string; cut: string }>> = {
-  BOOSTBACK: { ignite: '부스트백 점화 (3기)', cut: '부스트백 종료 — 착륙선 조준 완료' },
-  COAST: { ignite: '재진입 연소 점화 (3기)', cut: '엔진 정지' },
-  ENTRY_BURN: { ignite: '재진입 연소 재점화', cut: '재진입 연소 종료 — 감속 완료' },
-  DESCENT: { ignite: '착륙 연소 점화! (1기)', cut: '엔진 정지' },
-  LANDING_BURN: { ignite: '착륙 연소 재점화', cut: '엔진 정지 — 상승 중' },
-};
+type AdviceStep = Exclude<BoosterStep, 'DONE'>;
+const isAdviceStep = (step: BoosterStep): step is AdviceStep => step !== 'DONE';
 
 function promptFor(ctx: MissionContext): string | null {
   const p = ctx.boosterProgram;
   if (!p || !canToggleEngine(p, ctx.difficulty)) return null;
   if (ctx.difficulty.autoPitch) {
     // 일반 모드: 착륙 연소 시점 안내
-    if (p.engineRequest) return 'SPACE  부스터 엔진 정지';
-    return p.telemetry.altitudeM <= p.ignitionAltitudeM * IGNITION_HINT_RATIO ? 'SPACE  착륙 연소 점화!' : null;
+    if (p.engineRequest) return t('prompt.boosterCut');
+    return p.telemetry.altitudeM <= p.ignitionAltitudeM * IGNITION_HINT_RATIO ? t('prompt.landingIgnite') : null;
   }
   // 리얼 모드: 비행 컴퓨터 권장을 따라 할지 말지는 플레이어가 정한다
-  const advice = REAL_MODE_ADVICE[p.step];
+  const step = p.step;
   const recommendOn = p.recommended.engines > 0;
-  if (advice && recommendOn && !p.engineRequest) return `SPACE  ${advice.ignite}`;
-  if (advice && !recommendOn && p.engineRequest) return `SPACE  ${advice.cut}`;
-  if (p.step === 'BOOSTBACK' && p.attitudeHold === 'none' && !p.boostbackFired) return 'B  부스트백 자세 고정';
+  if (isAdviceStep(step) && recommendOn && !p.engineRequest) {
+    return t('prompt.space', { action: t(`advice.${step}.ignite`) });
+  }
+  if (isAdviceStep(step) && !recommendOn && p.engineRequest) {
+    return t('prompt.space', { action: t(`advice.${step}.cut`) });
+  }
+  if (p.step === 'BOOSTBACK' && p.attitudeHold === 'none' && !p.boostbackFired) return t('prompt.holdBoostback');
   return null;
 }
 
@@ -63,10 +63,10 @@ export function createBoosterReturnPhase(): Phase {
       say(
         ctx,
         mode.autoConfirm
-          ? '부스터 귀환 시작 — 비행 컴퓨터가 착륙선까지 유도합니다.'
+          ? t('msg.boosterReturn.auto')
           : mode.autoPitch
-            ? '부스터 귀환 — 착륙 연소 점화(Space)와 스로틀(W/S)은 직접 조종하세요.'
-            : '부스터 귀환 — B: 부스트백 자세 고정, R: 역추진 자세 고정, A/D: 수동 자세·그리드 핀, Space: 점화/정지.',
+            ? t('msg.boosterReturn.normal')
+            : t('msg.boosterReturn.real'),
         'warn',
       );
     },
@@ -83,14 +83,14 @@ export function createBoosterReturnPhase(): Phase {
         ctx.boosterCommand = result.command;
         if (result.patch.finsDeployed || result.patch.legsDeployed) {
           ctx.booster = { ...b, ...result.patch };
-          if (result.patch.legsDeployed) say(ctx, '착륙 다리 전개.');
+          if (result.patch.legsDeployed) say(ctx, t('msg.legsDeployed'));
         }
         if (result.stepChanged) {
           ctx.bus.emit('booster:step', { step: result.stepChanged });
           const msg = STEP_MESSAGES[result.stepChanged];
-          if (msg) say(ctx, msg);
+          if (msg) say(ctx, t(msg));
         }
-        if (result.destroyed) destroyBooster(ctx, '재진입 가열로 부스터가 공중 분해되었습니다 (재진입 연소 부족)');
+        if (result.destroyed) destroyBooster(ctx, t('outcome.boosterHeating'));
         ctx.prompt = promptFor(ctx);
         return null;
       }

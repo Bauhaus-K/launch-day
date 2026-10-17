@@ -1,4 +1,5 @@
 /** 표시용 단위 변환·포맷 (내부 SI → 화면 표기) */
+import { t } from '../i18n';
 
 const MPS_TO_KMH = 3.6;
 
@@ -8,7 +9,7 @@ export const formatAltitude = (m: number): string =>
 export const formatSpeedKmh = (mps: number): string => `${(mps * MPS_TO_KMH).toFixed(0)} km/h`;
 
 export const formatKm = (m: number): string =>
-  Number.isFinite(m) ? `${(m / 1000).toFixed(1)} km` : '탈출';
+  Number.isFinite(m) ? `${(m / 1000).toFixed(1)} km` : t('format.escape');
 
 export const formatKpa = (pa: number): string => `${(pa / 1000).toFixed(1)} kPa`;
 

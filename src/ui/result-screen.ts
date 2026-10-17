@@ -7,6 +7,7 @@ import type { MissionResult } from '../mission/scoring';
 import { flightReport } from './flight-charts';
 import { formatKm, formatMissionTime } from '../utils/format';
 import { el } from './dom';
+import { t } from '../i18n';
 
 export interface ResultActions {
   retry(): void;
@@ -30,14 +31,16 @@ export class ResultScreen {
     const summary = el('div');
     summary.append(
       el('div', 'result-reason', result.reason),
-      el('div', 'result-score', `총점 ${result.score} / 100 · 비행 시간 ${formatMissionTime(result.flightTimeS)}`),
+      el('div', 'result-score', t('result.score', { score: result.score, time: formatMissionTime(result.flightTimeS) })),
       record.isNewBest
         ? el(
             'div',
             'result-record new',
-            record.previous ? `신기록! (이전 최고 ${record.previous.grade} · ${record.previous.score}점)` : '첫 기록 저장!',
+            record.previous
+              ? t('result.newBest', { grade: record.previous.grade, score: record.previous.score })
+              : t('result.firstRecord'),
           )
-        : el('div', 'result-record', `이 모드 최고 기록 ${record.best.grade} · ${record.best.score}점`),
+        : el('div', 'result-record', t('result.best', { grade: record.best.grade, score: record.best.score })),
     );
     header.append(summary);
     this.card.append(header);
@@ -50,18 +53,18 @@ export class ResultScreen {
     };
     for (const item of result.items) addRow(item.label, `${item.points} / ${item.max}`, item.detail);
     addRow(
-      '최종 궤도',
+      t('result.finalOrbit'),
       '',
-      `원지점 ${formatKm(result.apoapsisAltitudeM)} · 근지점 ${formatKm(result.periapsisAltitudeM)}`,
+      t('result.finalOrbitDetail', { ap: formatKm(result.apoapsisAltitudeM), pe: formatKm(result.periapsisAltitudeM) }),
     );
     this.card.append(table);
     this.card.append(flightReport(log));
 
     const actions = el('div', 'result-actions');
-    const retry = el('button', 'btn', '다시 발사');
+    const retry = el('button', 'btn', t('result.retry'));
     retry.type = 'button';
     retry.addEventListener('click', () => this.actions.retry());
-    const menu = el('button', 'btn', '모드 선택');
+    const menu = el('button', 'btn', t('result.menu'));
     menu.type = 'button';
     menu.addEventListener('click', () => this.actions.menu());
     actions.append(retry, menu);

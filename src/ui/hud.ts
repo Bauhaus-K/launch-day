@@ -18,7 +18,9 @@ import {
 } from '../utils/format';
 import { BoosterPanel } from './booster-panel';
 import { ChecklistPanel } from './checklist-panel';
+import { Commentary } from './commentary';
 import { el, setHtml, setText } from './dom';
+import { t } from '../i18n';
 
 /** 타임라인 바에 표시할 단계 */
 const TIMELINE: readonly PhaseId[] = [
@@ -71,14 +73,16 @@ export class Hud {
   private readonly warpChip = el('div', 'panel hud-chip');
   private readonly cameraChip = el('div', 'panel hud-chip');
   private readonly modeChip = el('div', 'panel hud-chip');
-  private readonly soundChip = el('div', 'panel hud-chip');
+  private readonly soundChip = el('div', 'panel hud-chip chip-optional');
+  private readonly commentaryChip = el('div', 'panel hud-chip chip-optional');
+  readonly commentary = new Commentary();
   private readonly telemetry = el('div', 'panel hud-telemetry');
   private readonly boosterPanel = new BoosterPanel();
   private readonly messages = el('div', 'hud-messages');
   private readonly narration = el('div', 'panel hud-narration hidden');
   private readonly prompt = el('div', 'panel hud-prompt');
   private readonly checklist: ChecklistPanel;
-  private readonly pauseOverlay = el('div', 'hud-pause', '일시정지  ·  Esc 로 계속');
+  private readonly pauseOverlay = el('div', 'hud-pause', t('hud.paused'));
   private readonly values = new Map<string, HTMLElement>();
   private readonly bars = {
     load: bar(),
@@ -96,17 +100,17 @@ export class Hud {
     for (let i = 0; i < TIMELINE.length; i++) this.timeline.append(el('span'));
 
     const topRight = el('div', 'hud-top-right');
-    topRight.append(this.modeChip, this.soundChip, this.cameraChip, this.warpChip);
+    topRight.append(this.modeChip, this.soundChip, this.commentaryChip, this.cameraChip, this.warpChip);
 
     this.buildTelemetry();
 
     const help = el('div', 'hud-help');
     help.innerHTML = [
-      '<kbd>Space</kbd> 승인/점화/GO · <kbd>H</kbd> NO-GO',
-      '<kbd>W</kbd>/<kbd>S</kbd> 스로틀',
-      '<kbd>A</kbd>/<kbd>D</kbd> 피치 (부스터 하강 중: 그리드 핀)',
-      '리얼 모드 부스터: <kbd>B</kbd> 부스트백 · <kbd>R</kbd> 역추진 자세 고정',
-      '<kbd>C</kbd> 카메라 · <kbd>T</kbd> 배속 · <kbd>M</kbd> 소리 · <kbd>Esc</kbd> 일시정지',
+      t('hud.help.1'),
+      t('hud.help.2'),
+      t('hud.help.3'),
+      t('hud.help.4'),
+      t('hud.help.5'),
     ].join('<br>');
 
     this.prompt.style.display = 'none';
@@ -118,6 +122,7 @@ export class Hud {
       this.boosterPanel.root,
       this.messages,
       this.narration,
+      this.commentary.root,
       this.prompt,
       this.checklist.root,
       help,
@@ -134,37 +139,37 @@ export class Hud {
   }
 
   private buildTelemetry(): void {
-    const t = this.telemetry;
-    this.row(t, 'alt', '고도');
-    this.row(t, 'speed', '속도');
-    this.row(t, 'vs', '수직 속도');
-    this.row(t, 'hs', '수평 속도');
+    const tel = this.telemetry;
+    this.row(tel, 'alt', t('tel.altitude'));
+    this.row(tel, 'speed', t('tel.speed'));
+    this.row(tel, 'vs', t('tel.verticalSpeed'));
+    this.row(tel, 'hs', t('tel.horizontalSpeed'));
 
     const aero = el('div', 'tel-section');
-    this.row(aero, 'q', '동압 (q)');
-    this.row(aero, 'load', '구조 하중');
+    this.row(aero, 'q', t('tel.q'));
+    this.row(aero, 'load', t('tel.load'));
     aero.append(this.bars.load.root);
-    this.row(aero, 'stress', '기체 스트레스');
-    t.append(aero);
+    this.row(aero, 'stress', t('tel.stress'));
+    tel.append(aero);
 
     const control = el('div', 'tel-section');
-    this.row(control, 'throttle', '스로틀');
+    this.row(control, 'throttle', t('tel.throttle'));
     control.append(this.bars.throttle.root);
-    this.row(control, 'pitch', '피치 / 권장');
-    t.append(control);
+    this.row(control, 'pitch', t('tel.pitch'));
+    tel.append(control);
 
     const fuel = el('div', 'tel-section');
-    this.row(fuel, 'fuel1', '1단 추진제');
+    this.row(fuel, 'fuel1', t('tel.fuel1'));
     fuel.append(this.bars.fuel1.root);
-    this.row(fuel, 'fuel2', '2단 추진제');
+    this.row(fuel, 'fuel2', t('tel.fuel2'));
     fuel.append(this.bars.fuel2.root);
-    t.append(fuel);
+    tel.append(fuel);
 
     const orbit = el('div', 'tel-section');
-    this.row(orbit, 'ap', '원지점');
-    this.row(orbit, 'pe', '근지점');
-    this.row(orbit, 'target', '목표 궤도');
-    t.append(orbit);
+    this.row(orbit, 'ap', t('tel.apoapsis'));
+    this.row(orbit, 'pe', t('tel.periapsis'));
+    this.row(orbit, 'target', t('tel.target'));
+    tel.append(orbit);
   }
 
   bind(mission: Mission): void {
@@ -177,6 +182,7 @@ export class Hud {
     ];
     setText(this.modeChip, mission.ctx.difficulty.label);
     this.checklist.bind(mission.ctx);
+    this.commentary.bind(mission);
   }
 
   private pushMessage(text: string, tone: MessageTone): void {
@@ -221,10 +227,14 @@ export class Hud {
       node.className = i < currentIndex ? 'done' : i === currentIndex ? 'current' : '';
     });
 
-    setHtml(this.warpChip, `배속 <b>${info.warp}x</b>${info.warpLocked ? ' (제한)' : ''}`);
+    setHtml(this.warpChip, t('hud.warp', { warp: info.warp, locked: info.warpLocked ? t('hud.warpLocked') : '' }));
     this.warpChip.classList.toggle('locked', info.warpLocked);
-    setHtml(this.cameraChip, `카메라 <b>${info.camera}</b>`);
-    setHtml(this.soundChip, `소리 <b>${info.muted ? '꺼짐' : '켜짐'}</b>`);
+    setHtml(this.cameraChip, t('hud.camera', { name: info.camera }));
+    setHtml(this.soundChip, t('hud.sound', { state: info.muted ? t('hud.off') : t('hud.on') }));
+    setHtml(
+      this.commentaryChip,
+      t('hud.commentary', { state: this.commentary.isEnabled ? t('hud.on') : t('hud.off') }),
+    );
     this.pauseOverlay.style.display = info.paused ? '' : 'none';
 
     const set = (key: string, text: string) => {
@@ -241,14 +251,19 @@ export class Hud {
     const loadState = ctx.stats.loadRatio >= 1 ? 'danger' : ctx.stats.loadRatio >= STRUCTURE.warningRatio ? 'warn' : '';
     setBar(this.bars.load, ctx.stats.loadRatio, loadState, 1);
 
-    set('throttle', v.enginesOn ? `${formatPercent(v.throttle)} (명령 ${formatPercent(ctx.command.throttle)})` : '엔진 정지');
+    set(
+      'throttle',
+      v.enginesOn
+        ? t('tel.throttleValue', { actual: formatPercent(v.throttle), command: formatPercent(ctx.command.throttle) })
+        : t('tel.engineOff'),
+    );
     const showRecommendedThrottle = !ctx.difficulty.autoThrottle && v.activeStage === 1;
     setBar(this.bars.throttle, v.throttle, '', showRecommendedThrottle ? ctx.recommended.throttle : undefined);
     set('pitch', `${formatDeg(v.pitchRad)} / ${formatDeg(ctx.recommended.pitchRad)}`);
 
     const f1 = v.stage1PropellantKg / ctx.cfg.stage1.propellantMassKg;
     const f2 = v.stage2PropellantKg / ctx.cfg.stage2.propellantMassKg;
-    set('fuel1', v.activeStage === 1 ? formatPercent(f1) : '분리됨');
+    set('fuel1', v.activeStage === 1 ? formatPercent(f1) : t('tel.separated'));
     setBar(this.bars.fuel1, v.activeStage === 1 ? f1 : 0, f1 < 0.15 ? 'warn' : '');
     set('fuel2', formatPercent(f2));
     setBar(this.bars.fuel2, f2, f2 < 0.05 ? 'warn' : '');
@@ -256,7 +271,7 @@ export class Hud {
     const orbitKnown = ctx.flying && tel.altitudeM > 1_000;
     set('ap', orbitKnown ? formatKm(tel.orbit.apoapsisAltitudeM) : '-');
     const pe = tel.orbit.periapsisAltitudeM;
-    set('pe', !orbitKnown ? '-' : pe < 0 ? '지표 아래' : formatKm(pe));
+    set('pe', !orbitKnown ? '-' : pe < 0 ? t('tel.belowSurface') : formatKm(pe));
     set('target', formatKm(TARGET_ORBIT.altitudeM));
 
     if (ctx.prompt) {

@@ -5,9 +5,10 @@
  * 실제 수치와 다르게 재미를 위해 조정한 값은 "게임용 조정값"으로 표시한다.
  */
 import type { StackConfig } from '../rocket/vehicle-config';
+import { t } from '../i18n';
 
-export const ROCKET_NAME = '헬리오스 9';
-export const COMPANY_NAME = '오비탈 프런티어';
+export const ROCKET_NAME = t('name.rocket');
+export const COMPANY_NAME = t('name.company');
 
 /** 기체 직경 [m] — 공개 제원 3.7 m */
 export const ROCKET_DIAMETER_M = 3.7;

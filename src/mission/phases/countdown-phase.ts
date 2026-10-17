@@ -2,6 +2,7 @@ import { COUNTDOWN, TIME_WARP_STEPS } from '../../data/mission-config';
 import { COUNTDOWN_CALLOUTS, PHASE_INFO } from '../../data/mission-timeline';
 import type { Phase } from '../mission-types';
 import { say } from './phase-helpers';
+import { t } from '../../i18n';
 
 const MAX_WARP = TIME_WARP_STEPS[TIME_WARP_STEPS.length - 1] ?? 1;
 
@@ -19,7 +20,7 @@ export function createCountdownPhase(): Phase {
       const loss = ctx.launchConditions.stage1PropellantLossFraction;
       if (loss > 0) {
         ctx.vehicle = { ...ctx.vehicle, stage1PropellantKg: ctx.vehicle.stage1PropellantKg * (1 - loss) };
-        say(ctx, `액체산소 밀도 저하 — 1단 추진제 ${(loss * 100).toFixed(0)}% 손실.`, 'danger');
+        say(ctx, t('msg.propellantLoss', { percent: (loss * 100).toFixed(0) }), 'danger');
       }
       nextCallout = 0;
     },

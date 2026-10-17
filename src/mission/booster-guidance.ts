@@ -17,17 +17,11 @@ import { downrangeDistance, predictImpact, type ImpactPrediction } from '../phys
 import { dot, length } from '../physics/vec2';
 import { boosterMassKg, type BoosterCommand, type BoosterState } from '../rocket/booster-state';
 import type { StackConfig } from '../rocket/vehicle-config';
+import { t } from '../i18n';
 
 export type BoosterStep = 'BOOSTBACK' | 'COAST' | 'ENTRY_BURN' | 'DESCENT' | 'LANDING_BURN' | 'DONE';
 
-export const BOOSTER_STEP_LABELS: Record<BoosterStep, string> = {
-  BOOSTBACK: '부스트백',
-  COAST: '관성 비행',
-  ENTRY_BURN: '재진입 연소',
-  DESCENT: '대기권 하강',
-  LANDING_BURN: '착륙 연소',
-  DONE: '종료',
-};
+export const boosterStepLabel = (step: BoosterStep): string => t(`boosterStep.${step}`);
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
