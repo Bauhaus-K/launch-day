@@ -13,7 +13,8 @@ export interface PhaseInfo {
 export const PHASE_INFO: Record<PhaseId, PhaseInfo> = {
   PRE_LAUNCH: {
     title: '발사 전 점검',
-    narration: '기상, 추진제 충전, 각 시스템 상태를 확인합니다. 모든 항목이 GO여야 발사할 수 있습니다.',
+    narration:
+      '관제 센터가 항목별로 GO/NO-GO를 묻습니다. 측정값이 허용 한계를 넘으면 NO-GO(홀드)로 발사를 멈추고 조치해야 합니다.',
   },
   COUNTDOWN: {
     title: '카운트다운',
@@ -78,15 +79,3 @@ export const COUNTDOWN_CALLOUTS: readonly Callout[] = [
   { tMinusS: 2, text: '2' },
   { tMinusS: 1, text: '1' },
 ];
-
-/** 발사 전 점검 항목 (MVP: 자동 확인. 로드맵 4단계에서 미니게임으로 확장) */
-export const PRELAUNCH_CHECKS: readonly string[] = [
-  '기상 — 지상풍·고층풍 허용 범위',
-  '1단 추진제 충전 완료',
-  '2단 추진제 충전 완료',
-  '비행 종단 시스템 정상',
-  '발사장 안전 구역 확보',
-];
-
-/** 점검 항목 하나가 GO로 바뀌는 간격 [s] */
-export const PRELAUNCH_CHECK_INTERVAL_S = 0.6;

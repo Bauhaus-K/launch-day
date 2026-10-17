@@ -19,6 +19,11 @@ export const resultPhase: Phase = {
       maxDynamicPressurePa: ctx.stats.maxDynamicPressurePa,
       flightTimeS: Math.max(0, ctx.missionTimeS),
       booster: ctx.boosterProgram?.outcome ?? null,
+      checklist: {
+        faultCount: ctx.checklist.faultCount,
+        missedFaults: ctx.checklist.missedFaults,
+        falseHolds: ctx.checklist.falseHolds,
+      },
     });
     ctx.bus.emit('mission:ended', ctx.result);
   },

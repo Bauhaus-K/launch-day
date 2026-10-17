@@ -7,6 +7,7 @@ import type { VehicleCommand, VehicleState } from '../rocket/vehicle-state';
 import type { DifficultyConfig } from '../data/difficulty';
 import type { BoosterProgram } from './booster-program';
 import type { BoosterStep } from './booster-guidance';
+import type { ChecklistState, DecisionOutcome, LaunchConditions } from './checklist';
 import type { FlightLog } from './flight-recorder';
 import type { BoosterOutcome } from './landing';
 import type { MissionResult } from './scoring';
@@ -31,6 +32,7 @@ export interface MissionEvents {
   /** 카운트다운 콜아웃 시각 (T- 초) */
   'countdown:tick': { readonly tMinusS: number };
   'maxq:entered': Record<string, never>;
+  'checklist:decision': DecisionOutcome;
   'engine:ignition': { readonly stage: 1 | 2 };
   'engine:cutoff': { readonly stage: 1 | 2 };
   'stage:separated': { readonly missionTimeS: number };
@@ -48,6 +50,8 @@ export interface PilotInput {
   readonly pitchAxis: number;
   /** 리얼 모드 부스터 자세 유지 토글 요청 (R: 역추진, B: 부스트백, 해당 프레임 첫 스텝에서만) */
   readonly hold?: 'retrograde' | 'boostback' | null;
+  /** H: 체크리스트 NO-GO (홀드) (해당 프레임 첫 스텝에서만 true) */
+  readonly noGo?: boolean;
   /** Space: 다음 단계 승인 / 점화 (해당 프레임 첫 스텝에서만 true) */
   readonly confirm: boolean;
 }
@@ -104,6 +108,12 @@ export interface MissionContext {
   result: MissionResult | null;
   /** 결과 화면 그래프용 비행 기록 */
   readonly flightLog: FlightLog;
+  /** 미션 난수 (시드 고정 시 재현 가능) */
+  readonly rng: () => number;
+  /** 발사 전 Go/No-Go 체크리스트 */
+  readonly checklist: ChecklistState;
+  /** 체크리스트에서 놓친 이상이 비행에 주는 영향 */
+  launchConditions: LaunchConditions;
 }
 
 export interface Phase {

@@ -293,7 +293,8 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(420px, 90vw);
+  width: min(640px, 94vw);
+  pointer-events: auto;
 }
 
 .hud-checklist h3 {
@@ -301,21 +302,87 @@ body {
   font-size: 16px;
 }
 
+.check-head,
 .check-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 5px 0;
-  font-size: 14px;
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1.2fr 0.9fr;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  font-size: 13px;
 }
 
+.check-head {
+  color: var(--hud-dim);
+  font-size: 11px;
+  border-bottom: 1px solid var(--hud-border);
+}
+
+.check-item {
+  border-radius: 4px;
+  color: var(--hud-dim);
+}
+
+.check-item .reading,
 .check-item .state {
   font-family: var(--mono);
-  color: var(--hud-dim);
+}
+
+.check-item .limit {
+  font-size: 12px;
+}
+
+.check-item.polling {
+  color: var(--hud-text);
+  background: rgba(111, 195, 255, 0.12);
+  outline: 1px solid rgba(111, 195, 255, 0.4);
+}
+
+.check-item.hold {
+  color: var(--hud-text);
+  background: rgba(255, 195, 77, 0.12);
+}
+
+.check-item.hold .state {
+  color: var(--warn);
 }
 
 .check-item.go .state {
   color: var(--ok);
   font-weight: 700;
+}
+
+.check-item.go-missed .state {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.check-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.check-go {
+  border-color: var(--ok);
+  background: rgba(95, 224, 138, 0.15);
+}
+
+.check-nogo {
+  border-color: var(--warn);
+  background: rgba(255, 195, 77, 0.15);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.check-note {
+  font-size: 12px;
+  color: var(--hud-dim);
 }
 
 .hud-pause {

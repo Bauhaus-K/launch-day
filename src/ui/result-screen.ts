@@ -49,7 +49,6 @@ export class ResultScreen {
       table.append(tr);
     };
     for (const item of result.items) addRow(item.label, `${item.points} / ${item.max}`, item.detail);
-    addRow('발사 전 체크리스트', '—', '다음 업데이트에서 추가');
     addRow(
       '최종 궤도',
       '',

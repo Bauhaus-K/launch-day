@@ -6,6 +6,7 @@ import { COUNTDOWN_CALLOUTS } from '../src/data/mission-timeline';
 import { Mission } from '../src/mission/mission';
 import { NO_INPUT, type PhaseId, type PilotInput } from '../src/mission/mission-types';
 import { computeResult } from '../src/mission/scoring';
+import { awaitingDecision, checklistComplete, correctDecision, currentItem } from '../src/mission/checklist';
 import { autoFinSteer } from '../src/mission/booster-guidance';
 import { shouldAutoSeco } from '../src/mission/guidance';
 
@@ -60,6 +61,18 @@ const confirmOutsideBooster = (m: Mission): PilotInput => ({
   confirm: m.phase.id !== 'BOOSTER_RETURN' && m.phase.id !== 'ORBIT_INSERTION',
 });
 
+/** 체크리스트 이상 항목 배치를 고정해 결과를 재현 가능하게 */
+const TEST_SEED = 7;
+
+/** 체크리스트를 정답으로 판단하고, 끝나면 카운트다운을 시작한다 */
+function checklistInput(m: Mission): PilotInput {
+  const s = m.ctx.checklist;
+  const item = currentItem(s);
+  if (checklistComplete(s)) return { ...NO_INPUT, confirm: true };
+  if (!item || !awaitingDecision(s)) return NO_INPUT;
+  return correctDecision(item) === 'go' ? { ...NO_INPUT, confirm: true } : { ...NO_INPUT, noGo: true };
+}
+
 /** 최대 시뮬레이션 시간 [s] */
 const MAX_SIM_S = 1_500;
 
@@ -68,14 +81,15 @@ function runMission(mission: Mission, inputFor: (m: Mission) => PilotInput = () 
   mission.bus.on('phase:changed', (e) => phases.push(e.to));
   mission.start();
   for (let t = 0; t < MAX_SIM_S && !mission.finished; t += FIXED_TIMESTEP_S) {
-    mission.update(inputFor(mission), FIXED_TIMESTEP_S);
+    const input = mission.phase.id === 'PRE_LAUNCH' ? checklistInput(mission) : inputFor(mission);
+    mission.update(input, FIXED_TIMESTEP_S);
   }
   return phases;
 }
 
 describe('Mission 상태 머신', () => {
   it('관람 모드는 자동으로 궤도에 진입한다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator, { seed: TEST_SEED });
     const phases = runMission(mission);
 
     expect(phases).toEqual([
@@ -102,28 +116,28 @@ describe('Mission 상태 머신', () => {
   });
 
   it('일반 모드: 권장 시점에 착륙 연소를 직접 하면 부스터가 착륙한다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.normal);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.normal, { seed: TEST_SEED });
     runMission(mission, skilledNormalPilot);
     expect(mission.ctx.result?.success).toBe(true);
     expect(mission.ctx.result?.booster?.landed).toBe(true);
   });
 
   it('일반 모드: 착륙 연소를 하지 않으면 부스터를 잃지만 궤도 미션은 계속된다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.normal);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.normal, { seed: TEST_SEED });
     runMission(mission, confirmOutsideBooster);
     expect(mission.ctx.result?.booster?.landed).toBe(false);
     expect(mission.ctx.result?.success).toBe(true);
   });
 
   it('리얼 모드: 안내와 자세 고정(B/R)을 따르면 직접 착륙할 수 있다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.real);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.real, { seed: TEST_SEED });
     runMission(mission, createRealPilot());
     expect(mission.ctx.result?.success).toBe(true);
     expect(mission.ctx.result?.booster?.landed).toBe(true);
   });
 
   it('리얼 모드: 직접 자세를 조작하면 자세 고정이 풀린다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.real);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.real, { seed: TEST_SEED });
     mission.start();
     while (mission.phase.id !== 'BOOSTER_RETURN') {
       mission.update(confirmOutsideBooster(mission), FIXED_TIMESTEP_S);
@@ -135,14 +149,14 @@ describe('Mission 상태 머신', () => {
   });
 
   it('리얼 모드: 부스터를 조종하지 않으면 잃는다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.real);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.real, { seed: TEST_SEED });
     const phases = runMission(mission, confirmOutsideBooster);
     expect(phases).toContain('BOOSTER_RETURN');
     expect(mission.ctx.result?.booster?.landed).toBe(false);
   });
 
   it('일반 모드: Space 없이는 카운트다운이 시작되지 않는다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.normal);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.normal, { seed: TEST_SEED });
     mission.start();
     for (let i = 0; i < 60 * 30; i++) mission.update(NO_INPUT, FIXED_TIMESTEP_S);
     expect(mission.phase.id).toBe('PRE_LAUNCH');
@@ -150,31 +164,46 @@ describe('Mission 상태 머신', () => {
   });
 
   it('일반 모드: 스로틀을 줄이지 않으면 Max-Q 스트레스가 쌓인다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.normal);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.normal, { seed: TEST_SEED });
     runMission(mission, () => ({ ...NO_INPUT, confirm: true }));
     expect(mission.ctx.stats.stress).toBeGreaterThan(0);
     expect(mission.ctx.result).not.toBeNull();
   });
 
   it('리얼 모드: 자세를 수직으로 고정하면 궤도에 오르지 못한다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.real);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.real, { seed: TEST_SEED });
     // 피치 업 입력을 계속 → 90° 유지, Space는 계속 눌러 단계만 진행
     runMission(mission, () => ({ throttleAxis: -1, pitchAxis: 1, confirm: true }));
     expect(mission.ctx.result?.success).toBe(false);
     expect(mission.ctx.result?.grade).toBe('F');
   });
 
+  it('체크리스트에서 이상을 GO로 넘기면 감점되고, 정답이면 만점', () => {
+    const careless = new Mission(HELIOS9_STACK, DIFFICULTIES.normal, { seed: TEST_SEED });
+    careless.start();
+    while (careless.phase.id === 'PRE_LAUNCH') careless.update({ ...NO_INPUT, confirm: true }, FIXED_TIMESTEP_S);
+    expect(careless.ctx.checklist.missedFaults).toBe(careless.ctx.checklist.faultCount);
+
+    const careful = new Mission(HELIOS9_STACK, DIFFICULTIES.normal, { seed: TEST_SEED });
+    careful.start();
+    while (careful.phase.id === 'PRE_LAUNCH') careful.update(checklistInput(careful), FIXED_TIMESTEP_S);
+    expect(careful.ctx.checklist.missedFaults).toBe(0);
+    expect(careful.ctx.checklist.falseHolds).toBe(0);
+  });
+
   it('카운트다운 콜아웃은 T-60부터 빠짐없이 한 번씩 나온다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator, { seed: TEST_SEED });
     const texts: string[] = [];
-    mission.bus.on('mission:message', (m) => texts.push(m.text));
+    mission.bus.on('mission:message', (m) => {
+      if (mission.phase.id === 'COUNTDOWN') texts.push(m.text);
+    });
     mission.start();
     while (mission.phase.id !== 'LIFTOFF') mission.update(NO_INPUT, FIXED_TIMESTEP_S);
     expect(texts.slice(0, COUNTDOWN_CALLOUTS.length)).toEqual(COUNTDOWN_CALLOUTS.map((c) => c.text));
   });
 
   it('카운트다운 중 T-10 이후에는 배속이 1x로 제한된다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator, { seed: TEST_SEED });
     mission.start();
     while (mission.phase.id !== 'COUNTDOWN') mission.update(NO_INPUT, FIXED_TIMESTEP_S);
     expect(mission.maxWarp()).toBeGreaterThan(1);
@@ -201,6 +230,7 @@ describe('scoring', () => {
       distanceM: 0,
       tiltRad: 0,
     },
+    checklist: { faultCount: 1, missedFaults: 0, falseHolds: 0 },
   };
 
   it('완벽한 궤도·연료 여유·무손상이면 100점 S등급', () => {
@@ -217,6 +247,11 @@ describe('scoring', () => {
     const r = computeResult({ ...base, booster: { ...base.booster, landed: false } });
     expect(r.items.find((i) => i.label === '부스터 착륙')?.points).toBe(0);
     expect(r.score).toBeLessThan(computeResult(base).score);
+  });
+
+  it('체크리스트 실수는 감점', () => {
+    const missed = computeResult({ ...base, checklist: { faultCount: 1, missedFaults: 1, falseHolds: 0 } });
+    expect(missed.score).toBeLessThan(computeResult(base).score);
   });
 
   it('스트레스가 높을수록 감점', () => {

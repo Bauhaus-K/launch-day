@@ -25,7 +25,11 @@ class Game {
   private readonly scene: SceneManager;
   private readonly input = new KeyboardInput(window);
   private readonly warp = new TimeWarp();
-  private readonly hud = new Hud();
+  private readonly hud = new Hud((decision) => {
+    // 화면 버튼 클릭도 키 입력과 같은 경로로 다음 물리 스텝에 전달
+    if (decision === 'go') this.confirmPending = true;
+    else this.noGoPending = true;
+  });
   private readonly audio = new AudioManager();
   private readonly records = new BestRecords(browserStorage());
   private readonly startScreen: StartScreen;
@@ -35,6 +39,7 @@ class Game {
   private paused = false;
   private confirmPending = false;
   private holdPending: PilotInput['hold'] = null;
+  private noGoPending = false;
   private stepsThisFrame = 0;
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
@@ -83,6 +88,7 @@ class Game {
     this.paused = false;
     this.confirmPending = false;
     this.holdPending = null;
+    this.noGoPending = false;
     this.running = true;
     this.startScreen.setVisible(false);
     this.resultScreen.setVisible(false);
@@ -124,6 +130,7 @@ class Game {
     if (pressed.has('confirm')) this.confirmPending = true;
     if (pressed.has('holdRetrograde')) this.holdPending = 'retrograde';
     if (pressed.has('holdBoostback')) this.holdPending = 'boostback';
+    if (pressed.has('noGo')) this.noGoPending = true;
   }
 
   private step(dt: number): void {
@@ -133,12 +140,14 @@ class Game {
         pitchAxis: this.input.pitchAxis,
         confirm: this.confirmPending,
         hold: this.holdPending,
+        noGo: this.noGoPending,
       },
       dt,
     );
     // 승인·자세 유지 입력은 한 스텝에서만 소비
     this.confirmPending = false;
     this.holdPending = null;
+    this.noGoPending = false;
     this.stepsThisFrame++;
   }
 

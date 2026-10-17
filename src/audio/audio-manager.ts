@@ -134,6 +134,11 @@ export class AudioManager {
         else if (to === 'BOOSTER_RETURN') say('boosterReturn');
       }),
       bus.on('maxq:entered', () => say('maxQ')),
+      // 체크리스트: 올바른 판단은 짧은 확인음, 실수는 경고음
+      bus.on('checklist:decision', (o) => {
+        const correct = o.kind === 'go' || o.kind === 'correct-hold';
+        this.play(correct ? 'prompt' : 'alarm');
+      }),
       bus.on('stage:separated', () => {
         this.play('stageSeparation');
         say('separation');

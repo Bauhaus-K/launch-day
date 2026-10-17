@@ -2,11 +2,11 @@
  * 비행 중 HUD. 미션 상태를 읽어 표시만 하고, 메시지·해설은 이벤트 버스로 받는다.
  */
 import { STRUCTURE, TARGET_ORBIT } from '../data/mission-config';
-import { PHASE_INFO, PRELAUNCH_CHECKS } from '../data/mission-timeline';
+import { PHASE_INFO } from '../data/mission-timeline';
 import { COMPANY_NAME, ROCKET_NAME } from '../data/rocket-specs';
 import type { Mission } from '../mission/mission';
 import type { MessageTone, PhaseId } from '../mission/mission-types';
-import { completedChecks } from '../mission/phases/pre-launch-phase';
+import type { ChecklistDecision } from '../mission/checklist';
 import {
   formatAltitude,
   formatDeg,
@@ -17,6 +17,7 @@ import {
   formatSpeedKmh,
 } from '../utils/format';
 import { BoosterPanel } from './booster-panel';
+import { ChecklistPanel } from './checklist-panel';
 import { el, setHtml, setText } from './dom';
 
 /** 타임라인 바에 표시할 단계 */
@@ -76,7 +77,7 @@ export class Hud {
   private readonly messages = el('div', 'hud-messages');
   private readonly narration = el('div', 'panel hud-narration hidden');
   private readonly prompt = el('div', 'panel hud-prompt');
-  private readonly checklist = el('div', 'panel hud-checklist');
+  private readonly checklist: ChecklistPanel;
   private readonly pauseOverlay = el('div', 'hud-pause', '일시정지  ·  Esc 로 계속');
   private readonly values = new Map<string, HTMLElement>();
   private readonly bars = {
@@ -85,11 +86,11 @@ export class Hud {
     fuel1: bar(),
     fuel2: bar(),
   };
-  private readonly checkItems: HTMLElement[] = [];
   private narrationTimer = 0;
   private unsubscribe: Array<() => void> = [];
 
-  constructor() {
+  constructor(onChecklistDecision: (decision: ChecklistDecision) => void) {
+    this.checklist = new ChecklistPanel(onChecklistDecision);
     const topLeft = el('div', 'panel hud-top-left');
     topLeft.append(el('div', 'hud-mission-name', `${COMPANY_NAME} · ${ROCKET_NAME}`), this.clock, this.phase, this.timeline);
     for (let i = 0; i < TIMELINE.length; i++) this.timeline.append(el('span'));
@@ -98,11 +99,10 @@ export class Hud {
     topRight.append(this.modeChip, this.soundChip, this.cameraChip, this.warpChip);
 
     this.buildTelemetry();
-    this.buildChecklist();
 
     const help = el('div', 'hud-help');
     help.innerHTML = [
-      '<kbd>Space</kbd> 승인/점화',
+      '<kbd>Space</kbd> 승인/점화/GO · <kbd>H</kbd> NO-GO',
       '<kbd>W</kbd>/<kbd>S</kbd> 스로틀',
       '<kbd>A</kbd>/<kbd>D</kbd> 피치 (부스터 하강 중: 그리드 핀)',
       '리얼 모드 부스터: <kbd>B</kbd> 부스트백 · <kbd>R</kbd> 역추진 자세 고정',
@@ -119,7 +119,7 @@ export class Hud {
       this.messages,
       this.narration,
       this.prompt,
-      this.checklist,
+      this.checklist.root,
       help,
       this.pauseOverlay,
     );
@@ -167,16 +167,6 @@ export class Hud {
     t.append(orbit);
   }
 
-  private buildChecklist(): void {
-    this.checklist.append(el('h3', undefined, '발사 전 점검 — Go / No-Go'));
-    for (const item of PRELAUNCH_CHECKS) {
-      const row = el('div', 'check-item');
-      row.append(el('span', undefined, item), el('span', 'state', '확인 중…'));
-      this.checklist.append(row);
-      this.checkItems.push(row);
-    }
-  }
-
   bind(mission: Mission): void {
     this.unsubscribe.forEach((off) => off());
     this.messages.replaceChildren();
@@ -186,6 +176,7 @@ export class Hud {
       mission.bus.on('phase:changed', (e) => this.showNarration(PHASE_INFO[e.to].narration)),
     ];
     setText(this.modeChip, mission.ctx.difficulty.label);
+    this.checklist.bind(mission.ctx);
   }
 
   private pushMessage(text: string, tone: MessageTone): void {
@@ -281,15 +272,9 @@ export class Hud {
     if (boosterView) this.boosterPanel.update(ctx);
 
     const inPreLaunch = phaseId === 'PRE_LAUNCH';
-    this.checklist.style.display = inPreLaunch ? '' : 'none';
-    if (inPreLaunch) {
-      const done = completedChecks(ctx.phaseTimeS);
-      this.checkItems.forEach((row, i) => {
-        const go = i < done;
-        row.classList.toggle('go', go);
-        const state = row.lastElementChild;
-        if (state instanceof HTMLElement) setText(state, go ? 'GO' : '확인 중…');
-      });
-    }
+    this.checklist.setVisible(inPreLaunch);
+    if (inPreLaunch) this.checklist.update(ctx);
+    // 체크리스트 중에는 텔레메트리가 의미 없으므로 숨긴다
+    if (inPreLaunch) this.telemetry.style.display = 'none';
   }
 }

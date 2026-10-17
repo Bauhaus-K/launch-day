@@ -108,16 +108,17 @@ export const CONTROLS = {
   maxPitchRad: 90 * DEG,
 } as const;
 
-/** 점수 배점 (체크리스트는 이후 로드맵) */
+/** 점수 배점 (합계 100) */
 export const SCORING = {
-  orbitAccuracyMax: 40,
+  orbitAccuracyMax: 35,
   /** 이 오차 이상이면 궤도 정확도 0점 [m] */
   orbitErrorZeroM: 60_000,
   fuelMax: 15,
   /** 2단 추진제가 이 비율 이상 남으면 연료 만점 */
   fuelFullScoreFraction: 0.05,
-  structureMax: 20,
+  structureMax: 15,
   landingMax: 25,
+  checklistMax: 10,
   /** 착륙에 성공하면 품질과 무관하게 받는 비율 */
   landingBaseRatio: 0.6,
   grades: [

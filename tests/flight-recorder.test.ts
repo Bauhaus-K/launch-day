@@ -8,7 +8,7 @@ import { niceTicks } from '../src/ui/line-chart';
 
 describe('비행 기록', () => {
   it('발사 후 일정 간격으로 샘플을 남기고 주요 사건을 표시한다', () => {
-    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator);
+    const mission = new Mission(HELIOS9_STACK, DIFFICULTIES.spectator, { seed: 7 });
     mission.start();
     while (mission.ctx.missionTimeS < 200) mission.update(NO_INPUT, FIXED_TIMESTEP_S);
     const log = mission.ctx.flightLog;

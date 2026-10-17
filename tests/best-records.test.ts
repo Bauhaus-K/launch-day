@@ -24,6 +24,7 @@ function result(score: number, grade = 'A'): MissionResult {
     maxDynamicPressurePa: 20_000,
     flightTimeS: 500,
     booster: null,
+    checklist: { faultCount: 1, missedFaults: 0, falseHolds: 0 },
     score,
     grade,
     items: [],

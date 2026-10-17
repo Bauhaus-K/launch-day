@@ -14,17 +14,26 @@ import { createFlightLog, markEvent, recordBoosterEnd, recordFlight } from './fl
 import { guidancePitch, guidanceThrottle, structuralLoadPa } from './guidance';
 import type { MissionContext, MissionEvents, Phase, PhaseId, PilotInput } from './mission-types';
 import { createBoosterReturnPhase } from './phases/booster-return-phase';
+import { createChecklist, NOMINAL_CONDITIONS } from './checklist';
 import { createCountdownPhase } from './phases/countdown-phase';
 import { liftoffPhase } from './phases/liftoff-phase';
 import { createMaxQPhase } from './phases/max-q-phase';
 import { mecoPhase } from './phases/meco-phase';
 import { createOrbitInsertionPhase } from './phases/orbit-insertion-phase';
-import { preLaunchPhase } from './phases/pre-launch-phase';
+import { createPreLaunchPhase } from './phases/pre-launch-phase';
+import { createRng } from '../utils/random';
 import { resultPhase } from './phases/result-phase';
 import { sesPhase } from './phases/ses-phase';
 import { stageSeparationPhase } from './phases/stage-separation-phase';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+export interface MissionOptions {
+  /** 난수 시드 (체크리스트 이상 항목 등). 생략하면 매번 다르다 */
+  readonly seed?: number;
+}
+
+const randomSeed = () => Math.floor(Math.random() * 2 ** 32);
 
 export class Mission {
   readonly bus = new EventBus<MissionEvents>();
@@ -32,8 +41,9 @@ export class Mission {
   private readonly phases: Partial<Record<PhaseId, Phase>>;
   private current: Phase;
 
-  constructor(cfg: StackConfig, difficulty: DifficultyConfig) {
+  constructor(cfg: StackConfig, difficulty: DifficultyConfig, options: MissionOptions = {}) {
     const vehicle = createInitialVehicle(cfg);
+    const rng = createRng(options.seed ?? randomSeed());
     const telemetry = computeTelemetry(vehicle, cfg);
     this.ctx = {
       cfg,
@@ -57,11 +67,15 @@ export class Mission {
       outcome: null,
       result: null,
       flightLog: createFlightLog(),
+      rng,
+      checklist: createChecklist(rng),
+      launchConditions: NOMINAL_CONDITIONS,
     };
     this.recordEvents();
 
+    const preLaunch = createPreLaunchPhase();
     const list: Phase[] = [
-      preLaunchPhase,
+      preLaunch,
       createCountdownPhase(),
       liftoffPhase,
       createMaxQPhase(),
@@ -73,7 +87,7 @@ export class Mission {
       resultPhase,
     ];
     this.phases = Object.fromEntries(list.map((p) => [p.id, p]));
-    this.current = preLaunchPhase;
+    this.current = preLaunch;
   }
 
   /** 그래프에 표시할 주요 사건 시각 기록 */
@@ -175,8 +189,9 @@ export class Mission {
   }
 
   private updateStats(dt: number): void {
-    const { stats, telemetry } = this.ctx;
-    const load = structuralLoadPa(telemetry);
+    const { stats, telemetry, launchConditions } = this.ctx;
+    // 체크리스트에서 고층풍 이상을 놓쳤다면 실제 하중이 더 크다
+    const load = structuralLoadPa(telemetry) * launchConditions.structuralLoadFactor;
     stats.loadRatio = load / STRUCTURE.qLimitPa;
     stats.maxLoadRatio = Math.max(stats.maxLoadRatio, stats.loadRatio);
     stats.maxDynamicPressurePa = Math.max(stats.maxDynamicPressurePa, telemetry.dynamicPressurePa);

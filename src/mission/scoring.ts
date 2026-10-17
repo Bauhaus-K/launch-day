@@ -2,6 +2,7 @@
  * 미션 점수·등급 계산. 순수 함수.
  */
 import { SCORING, TARGET_ORBIT } from '../data/mission-config';
+import { checklistScoreRatio } from './checklist';
 import { landingQuality, type BoosterOutcome } from './landing';
 
 export interface ScoreItem {
@@ -24,6 +25,14 @@ export interface ScoreInput {
   readonly flightTimeS: number;
   /** 부스터 착륙 결과 (분리 전 실패 등으로 없으면 null) */
   readonly booster: BoosterOutcome | null;
+  /** 발사 전 체크리스트 판단 결과 */
+  readonly checklist: ChecklistSummary;
+}
+
+export interface ChecklistSummary {
+  readonly faultCount: number;
+  readonly missedFaults: number;
+  readonly falseHolds: number;
 }
 
 export interface MissionResult extends ScoreInput {
@@ -54,6 +63,9 @@ export function computeResult(input: ScoreInput): MissionResult {
     ? SCORING.landingMax * (SCORING.landingBaseRatio + (1 - SCORING.landingBaseRatio) * landingQuality(booster))
     : 0;
 
+  const checklistPoints = SCORING.checklistMax * checklistScoreRatio(input.checklist);
+  const { faultCount, missedFaults, falseHolds } = input.checklist;
+
   const items: ScoreItem[] = [
     {
       label: '궤도 진입 정확도',
@@ -82,6 +94,12 @@ export function computeResult(input: ScoreInput): MissionResult {
         : booster.landed
           ? `중심에서 ${booster.distanceM.toFixed(1)} m · 하강 ${booster.verticalSpeedMps.toFixed(1)} m/s · 기울기 ${((booster.tiltRad * 180) / Math.PI).toFixed(1)}°`
           : booster.reason,
+    },
+    {
+      label: '발사 전 체크리스트',
+      points: Math.round(checklistPoints),
+      max: SCORING.checklistMax,
+      detail: `이상 ${faultCount}건 중 ${faultCount - missedFaults}건 발견 · 불필요한 홀드 ${falseHolds}회`,
     },
   ];
 

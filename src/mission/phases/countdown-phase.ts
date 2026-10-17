@@ -15,6 +15,12 @@ export function createCountdownPhase(): Phase {
     enter(ctx) {
       ctx.missionTimeS = -COUNTDOWN.startS;
       ctx.flying = true;
+      // 체크리스트에서 액체산소 온도 이상을 놓쳤다면 1단 추진제가 줄어든다
+      const loss = ctx.launchConditions.stage1PropellantLossFraction;
+      if (loss > 0) {
+        ctx.vehicle = { ...ctx.vehicle, stage1PropellantKg: ctx.vehicle.stage1PropellantKg * (1 - loss) };
+        say(ctx, `액체산소 밀도 저하 — 1단 추진제 ${(loss * 100).toFixed(0)}% 손실.`, 'danger');
+      }
       nextCallout = 0;
     },
     update(ctx) {
